@@ -1,0 +1,3 @@
+# GD32F470 主板 SDK / 模板（体积大，本地原位使用，不进 Git 历史）
+# 速查通过 refs/gd32f4xx-api.md 和 modes/gd32-board.md 引用本地路径
+mcu_-gd_-main-board-master/

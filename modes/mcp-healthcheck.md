@@ -21,7 +21,7 @@
 | 序号 | 工具组 | 测试方法 | 预期结果 |
 |------|--------|---------|---------|
 | 1 | **Context7 MCP** | `mcp__context7__resolve-library-id` 查询 `react` | 返回库列表 |
-| 2 | **Grok-Search（CLI Skill）** | `python ~/.claude/grok-search/scripts/grok_search.py --query "test"` | 返回 JSON 含 content+sources |
+| 2 | **Grok-Search（CLI Skill）** | `python ~/.claude/skills/grok-search/scripts/grok_search.py --query "test"` | 返回 JSON 含 content+sources |
 | 3 | **Document Skills（/pdf）** | `uv run --with pypdf python -c "from pypdf import PdfReader; print('OK')"` | 输出 OK |
 | 4 | **Document Skills（/xlsx）** | `uv run --with openpyxl python -c "import openpyxl; print('OK')"` | 输出 OK |
 | 5 | **Sequential Thinking MCP** | 尝试调用 `mcp__sequential-thinking__*` 任一工具 | 返回结果或"工具不存在"错误 |

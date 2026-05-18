@@ -184,6 +184,14 @@
 
 ---
 
+## 7.5 本地厂商 SDK / 主板模板（优先使用，避免重新下载）
+
+| 名称 | 本地路径 | 内容 | 触发方式 |
+|------|---------|------|---------|
+| **GD32F470VET6 主板（MICU / CMIC）** | `C:\Users\A\.claude\skills\embedded-dev\mcu_-gd_-main-board-master\` | GD32F4xx 标准外设库 V3.3.3、CMSIS 5/6 Pack、V1/V2 板卡的 Standalone + Bootloader OTA Keil 模板、数据手册 PDF、原理图、DMA 通道表、UART OTA 上位机 Python 脚本 | API 速查见 `refs/gd32f4xx-api.md`；模板用法见 `modes/gd32-board.md`（触发词 `GD32` / `兆易` / `MICU 主板`） |
+
+---
+
 ## 8. 学习资源 / 论坛
 
 | 名称 | 链接 | 说明 |

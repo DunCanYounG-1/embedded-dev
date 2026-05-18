@@ -1,5 +1,7 @@
 # embedded-dev Skill 说明书
 
+by [DuncanY](https://github.com/DunCanYounG-1)
+
 ## 1. 这是什么
 
 `embedded-dev` 是一个面向嵌入式固件开发的结构化技能包，核心是 `SKILL.md` 中定义的 **RIPER-5 嵌入式芯片开发协议**。它不是单纯的“写代码提示词”，而是一套把嵌入式开发过程标准化的工作流，覆盖：

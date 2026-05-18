@@ -47,6 +47,15 @@ triggers:
   - "逐飞"
   - "seekfree"
   - "英飞凌库"
+  - "GD32"
+  - "GD32F4"
+  - "GD32F470"
+  - "GigaDevice"
+  - "兆易"
+  - "兆易创新"
+  - "MICU 主板"
+  - "MICU主板"
+  - "CMIC 主板"
   - "网表"
   - "netlist"
   - "读网表"
@@ -76,11 +85,13 @@ hooks:
           command: "test -f 编辑清单.md && echo '[embedded-dev] 代码已修改，请更新 编辑清单.md、硬件资源表.md（如有引脚变更）、研究发现.md（如有新发现）。' || true"
 ---
 <!-- Hooks 环境依赖说明：
-本 Skill 的 hooks 使用 POSIX shell 语法（test、head、sed、for/do 等），
-需要在 bash/zsh 环境下执行。Claude Code 默认使用 zsh shell，
-因此 hooks 应能正常工作。若在纯 PowerShell 环境下使用，
-hooks 功能可能受限，但不影响核心协议流程。
+本 Skill 的 hooks 使用 POSIX shell 语法（test、head、sed、for/do 等）。
+Claude Code 在 Linux/macOS 下使用 bash/zsh，在 Windows 下使用 Git Bash，
+三种环境均能正确执行这些 POSIX 命令，因此 hooks 应能正常工作。
+若在纯 PowerShell / cmd 环境下使用 Claude Code，hooks 功能可能受限，
+但不影响核心协议流程。
 -->
+
 # RIPER-5 嵌入式芯片开发协议
 
 ## Vibe 执行壳
@@ -108,6 +119,20 @@ hooks 功能可能受限，但不影响核心协议流程。
 | 故障快速诊断 | 参考文档 | 见 `refs/troubleshooting.md` |
 | 硬件实时调试 | Embedded Debugger MCP | 仅硬件联调时可用 |
 | 长任务治理 / 多 Agent 交接 | `refs/vibe-workflow.md` | 见“Vibe 执行壳”、PLAN/EXECUTE 阶段和四文件体系 |
+| **工程画像自动探测** | `python ~/.claude/skills/shared/project_detect.py <workspace>` | EXECUTE 前自动识别构建系统/芯片/产物，避免手工枚举 |
+| **构建固件** | `/build-cmake` `/build-keil` `/build-iar` `/build-platformio` `/build-idf` `/build-makefile` | 按工程类型选择，输出 Project Profile 与 ELF/HEX/BIN 路径 |
+| **烧录固件** | `/flash-openocd` `/flash-keil` `/flash-platformio` `/flash-idf` `/flash-jlink` | 烧录前必须先有 build 输出的 artifact_path |
+| **GDB 在线调试** | `/debug-gdb-openocd` `/debug-jlink` `/debug-platformio` | 支持下载后调试、仅附着、崩溃现场分析 |
+| **串口监视** | `/serial-monitor` | 自动选择 COM/tty 端口并抓取日志 |
+| **协议总线调试** | `/modbus-debug` `/can-debug` `/visa-debug` | Modbus RTU/TCP / CAN 帧 / VISA 仪器 SCPI |
+| **内存与 RTOS 分析** | `/memory-analysis` `/rtos-debug` | .map/ELF 内存报告；FreeRTOS/RT-Thread/Zephyr 线程感知 |
+| **静态分析 / MISRA** | `/static-analysis` | cppcheck / clang-tidy / GCC analyzer |
+| **外设驱动适配** | `/peripheral-driver` | 开源驱动搜索→评估→适配脚本 |
+| **STM32 HAL 工程开发** | `/stm32-hal-development` | CubeMX/HAL 工程的 BSP 模板与 troubleshooting |
+| **多 skill 流水线** | `/workflow` | 编译→烧录→监控/调试 一键链路 |
+| **跨 skill 上下文交接** | `refs/contracts.md` | Project Profile / Skill Handoff / Command Outcome Schema |
+| **失败分类标准化** | `refs/failure-taxonomy.md` | 7 类标准失败：environment-missing / project-config-error 等 |
+| **跨平台路径规则** | `refs/platform-compatibility.md` | Linux/macOS/Windows 串口、路径、权限差异 |
 ---
 ## 适用场景
 - STM32、ESP32、Arduino、RISC-V、NXP、TI MSP430、国产芯片（CH32、GD32、AT32、APM32）等平台的固件开发
@@ -215,7 +240,14 @@ git push
    - 是否有相同芯片/相同应用的竞赛经验帖或开源项目
    - 是否有官方示例代码或 SDK
    - **八荣八耻原则**：以创造接口为耻，以复用现有为荣。搜索结果将直接决定后续技术路线
-2. 识别芯片平台和固件库
+2. **识别芯片平台和固件库**：
+   - **优先调用工程画像探测器**（一键完成构建系统/芯片/产物识别）：
+     ```bash
+     python ~/.claude/skills/shared/project_detect.py <工作区路径>
+     ```
+     输出标准化 `Project Profile`（字段定义见 `refs/contracts.md`）：`workspace_root` / `workspace_os` / `build_system` / `target_mcu` / `probe` / `artifact_path` / `artifact_kind` / `serial_port` 等。
+   - 探测器无法识别或字段缺失时，回退到人工识别：检查文件包含、API 调用、项目结构（参见原识别规则）
+   - 探测结果写入 `硬件资源表.md` 顶部"芯片与开发环境"段落
 3. 分析任务相关代码（核心文件/函数、代码流程、中断例程）
 4. 检查外设配置和硬件交互
 5. 审查时钟设置和时序
@@ -263,6 +295,7 @@ git push
 **完成后**：自动进入 PLAN 模式
 ---
 ### 模式3：PLAN（计划）
+
 **目的**：创建详细技术规格，标记每步是否需要交互审查
 **允许**：详细计划（文件路径、函数签名、寄存器配置）、标记 `review:true/false`、定义每轮目标和验证标准
 **禁止**：任何实现或代码编写、跳过规格、遗漏审查标记
@@ -308,6 +341,35 @@ n. [最终操作, verify:<验证标准>, review:true]
 **允许**：仅实现计划中明确的内容、标记已完成项、小偏差修正并报告、更新任务进度、输出轮次证据包
 **禁止**：未报告偏差、计划外改进、重大逻辑变更（须回 PLAN）、跳过代码
 **小偏差处理**：先报告再执行，涉及逻辑/算法/架构的变更必须回 PLAN 模式
+
+**操作执行层兄弟 skill 路由（强制优先调用，禁止手敲命令重造轮子）**：
+
+涉及"真去跑命令"的步骤，**必须**路由到对应兄弟 skill，不要在 EXECUTE 内手写 Bash 命令再现造一遍，因为兄弟 skill 已封装：① 工程画像探测、② 工具路径解析（`em_config.py`）、③ 跨平台路径处理、④ 标准化 `Command Outcome` 输出（status / summary / evidence / next_action / failure_category）。
+
+| 操作类型 | 优先 skill | 何时使用 |
+|---------|-----------|---------|
+| 编译 CMake / Keil / IAR / PlatformIO / ESP-IDF / Makefile 工程 | `/build-cmake` `/build-keil` `/build-iar` `/build-platformio` `/build-idf` `/build-makefile` | 需要 ELF/HEX/BIN 产物时 |
+| 烧录 OpenOCD / Keil / PlatformIO / ESP-IDF / J-Link | `/flash-openocd` `/flash-keil` `/flash-platformio` `/flash-idf` `/flash-jlink` | 已有 artifact 需要下载到 MCU 时；BIN 烧录前必须明确基地址 |
+| GDB 在线调试（下载/附着/崩溃排查） | `/debug-gdb-openocd` `/debug-jlink` `/debug-platformio` | 需要单步、断点、查看寄存器或栈帧时 |
+| 串口日志抓取 | `/serial-monitor` | 验证固件运行、查看 printf/log 输出 |
+| Modbus / CAN / VISA 通信调试 | `/modbus-debug` `/can-debug` `/visa-debug` | 工业总线寄存器读写、CAN 帧监听、仪器 SCPI 通信 |
+| 内存使用报告 / RTOS 线程检查 | `/memory-analysis` `/rtos-debug` | .map/ELF 内存超限分析；FreeRTOS 任务/栈水位/死锁排查 |
+| 静态分析 / MISRA 合规 | `/static-analysis` | 提交前代码扫描 |
+| 外设驱动搜索→评估→适配 | `/peripheral-driver` | 新接传感器/显示屏/存储芯片时（与"驱动库移植优先原则"配合） |
+| STM32 CubeMX HAL 工程开发 | `/stm32-hal-development` | 需要 BSP 模板、HAL 速查、HAL 专属 troubleshooting |
+| 编译→烧录→监控/调试 串接 | `/workflow` | 一个命令完成完整链路 |
+
+**调用规范**：
+1. 在轮次声明里标注"本轮将调用 `<skill 名>` 执行 `<动作词>`"，动作词使用 `refs/contracts.md` 的统一动词（detect / build / flash / attach / monitor / reset / verify）
+2. skill 返回 `Command Outcome` 后，将 `status` / `evidence` / `next_action` 写入 `编辑清单.md` 本轮记录
+3. `status != success` 时，按 `refs/failure-taxonomy.md` 的 7 类标准化失败分类决定下一步：
+   - `environment-missing` → 修复缺失依赖后重试，禁止跳过
+   - `project-config-error` → 回 PLAN 修配置
+   - `connection-failure` / `permission-problem` → 阻塞，向用户索取硬件 / 权限确认
+   - `artifact-missing` → 回 build skill 重新产出
+   - `target-response-abnormal` → 进入 `refs/systematic-debugging.md` 流程
+   - `ambiguous-context` → 列候选向用户裁决，禁止猜测
+4. skill 间交接遵循 `refs/contracts.md` 的 Skill Handoff Contract：保留 Project Profile、已执行命令、关键证据、推荐下一步
 **轮次制规则**：
 
 1. 执行前声明当前轮次、`trace_id`、目标、验证标准、停止条件
@@ -406,8 +468,11 @@ n. [最终操作, verify:<验证标准>, review:true]
 ```
 [未验证] 实现与最终计划存在偏差：[描述]。待验证项：[列出]
 ```
+
+**失败分类标准化**：当输出 `[未验证]` 或子任务 `status != success` 时，必须用 `refs/failure-taxonomy.md` 的 7 类标准分类标注偏差类别（`environment-missing` / `project-config-error` / `connection-failure` / `artifact-missing` / `target-response-abnormal` / `permission-problem` / `ambiguous-context`），并按该文件的"响应要求"给出最小修复动作；禁止用"应该""可能""差不多"等模糊词代替分类。
 **偏差处理**：发现偏差后，架构/逻辑级偏差 → 返回 PLAN 重新出实施清单；纯实现细节偏差 → 返回 EXECUTE 修正对应步骤。
 > 遇到复杂调试问题时，按 `refs/systematic-debugging.md` 的四阶段根因分析方法执行。
+> **闭环控制系统专题**：若怀疑症状是"调参调不好 + 方向反 + 震荡"组合，按 `refs/control-loop-sign-debug.md` 的"符号陷阱 + 观察模式对照实验法"排查。典型触发场景：PID/前馈输出方向错、Kp 调到很低才稳、多轮调参治标不治本。
 ---
 ## 磁盘工作记忆机制（四文件体系）
 
@@ -437,17 +502,31 @@ n. [最终操作, verify:<验证标准>, review:true]
 ### 工具优先级总表
 | 类型 | 工具 | 适用场景 | 备用方案 |
 |------|------|---------|---------|
-| MCP | **grok-search** | 所有联网检索：驱动、报错、竞赛经验、数据手册入口、版本查询 | Claude WebSearch / 手动搜索 |
+| **CLI (Bash)** | **grok-search** ⭐ | 所有联网检索：驱动、报错、竞赛经验、数据手册入口、版本查询 | Claude WebSearch / 手动搜索 |
 | MCP | **Context7** | 固件库 API、函数签名、初始化顺序、寄存器说明 | 本地 refs / grok-search |
 | Skill | **Document Skills** | PDF/XLSX/DOCX/PPTX 文档读取与提取 | Claude Read / grok-search |
 | MCP | **Sequential Thinking** | 引脚冲突、DMA 分配、中断优先级等复杂推理 | 人工推理 + WebSearch |
 | MCP | **Embedded Debugger / Serial** | 实时硬件调试、烧录、串口交互 | 串口日志 / 断言 / 手工烧录 |
 | CLI | **gh** | GitHub 仓库搜索、代码搜索、读取源文件 | grok-search + `site:github.com` |
 | External CLI | **agent-browser**（若已安装） | 在线数据手册页面、厂商 Web 配置器、后台取证、截图留档 | `/playwright-skill` / 手工浏览 |
+| Python | **shared/project_detect.py** | 工程画像自动探测（构建系统/芯片/产物） | 见 `refs/contracts.md`；命令：`python ~/.claude/skills/shared/project_detect.py <ws>` |
+| Python | **shared/tool_config.py** | 嵌入式工具路径管理（OpenOCD / Keil UV4 / arm-gcc / J-Link 等） | 命令：`python ~/.claude/skills/shared/tool_config.py list`；其他子命令：`get <name>` / `set <name> <path> [--global]` / `remove <name>` / `paths` |
+| Skill 集 | **build-* / flash-* / debug-* / serial-monitor 等 24 个兄弟 skill** | 真正执行编译/烧录/调试/串口/总线/分析操作 | 见"快速工具索引"和 EXECUTE 阶段"操作执行层兄弟 skill 路由" |
+
+> **⭐ grok-search 强制调用规则（优先级最高）**
+>
+> grok-search **不是 MCP**，是本地 Python CLI 脚本，必须通过 Bash 工具调用：
+> ```bash
+> python ~/.claude/skills/grok-search/scripts/grok_search.py --query "搜索词"
+> ```
+> - 任何需要联网检索的场景，**必须先尝试 grok-search**，禁止直接用 WebSearch 替代
+> - 返回 JSON，关键字段：`ok`（成功/失败）、`content`（归纳答案）、`sources`（URL列表）、`raw`（解析失败时兜底）
+> - 失败（`ok=false` 或超时）时，才降级到 Claude WebSearch
+> - 详细用法见 `refs/mcp-tools.md` Grok-Search 章节
 
 ### 工具路由原则
 
-1. 一般联网搜索：本地 refs → grok-search → `gh` / WebSearch / 官方站点
+1. 一般联网搜索：本地 refs → **grok-search (Bash)** → `gh` / WebSearch / 官方站点
 2. STM32 HAL/StdPeriph API：本地离线 refs → Context7 → grok-search
 3. 数据手册 / pinout / 网表：网表模式 → grok-search 搜官方入口 → Document Skills 提取 → Sequential Thinking 整理
 4. REVIEW 阶段质量检查：必要时调用 `/simplify`
@@ -491,6 +570,7 @@ n. [最终操作, verify:<验证标准>, review:true]
 |--------|---------|---------|
 | **标准外设库 (StdPeriph)** | `refs/stm32-stdperiph-api.md` | RCC/GPIO/USART/SPI/I2C/DMA/TIM/ADC/NVIC/EXTI 全套 API、结构体、引脚表、DMA 通道映射 |
 | **HAL 库** | `refs/stm32-hal-api.md` | GPIO/UART/SPI/I2C/DMA/TIM/ADC 全套 API、句柄配置、回调函数、MSP 初始化、StdPeriph↔HAL 对照表 |
+| **GD32F4xx 标准外设库**（兆易创新） | `refs/gd32f4xx-api.md` | RCU/GPIO/USART/SPI/I2C/DMA/TIMER/ADC/NVIC 全套 API、与 STM32 StdPeriph 差异、DMA 通道 × SUB 表、GD32F470VET6 板载 BSP 引脚速查、Bootloader/UART OTA 分区，附本地 GD32F470 主板模板路径 |
 > **优先级规则**：STM32 HAL/StdPeriph API 查询 → 先查本地离线 refs → 离线缺失或不确定 → Context7 MCP → 再失败 → grok-search。此规则**优先于**辅助工具调用规范中 Context7 的通用优先级。
 >
 > RESEARCH 阶段识别固件库后，根据库类型加载对应文件。EXECUTE 阶段编写代码时按需查阅函数签名和常量。
@@ -523,9 +603,37 @@ n. [最终操作, verify:<验证标准>, review:true]
 |--------|------|---------|
 | `查手册` / `查数据手册` / `datasheet` | 数据手册查阅（搜索→下载PDF→MCP解析→参数提取→代码注释） | `modes/datasheet-lookup.md` |
 | `逐飞` / `seekfree` / `英飞凌库` | 逐飞开源库管理（搜索→下载→本地索引→移植） | `modes/seekfree-lib.md` |
+| `GD32` / `GD32F470` / `GigaDevice` / `兆易` / `MICU 主板` / `CMIC 主板` | GD32F470VET6 主板模板（识别版本→选 Standalone/Bootloader→安装 Pack→拷贝模板→OTA） | `modes/gd32-board.md` |
 | `网表` / `netlist` / `读网表` / `查网表` | 网表读取（检测→解析→提取MCU引脚→比对资源表→应用代码） | `modes/netlist-lookup.md` |
 | `检查工具` / `检查mcp` / `测试工具` / `mcp检查` / `工具诊断` / `healthcheck` | MCP 工具健康检查（逐一测试→诊断→尝试修复→生成报告） | `modes/mcp-healthcheck.md` |
 调用规则：
 1. **立即读取**对应的 `modes/` 文件
 2. 按该文件的流程执行任务，**不中断当前 RIPER-5 阶段**
 3. 任务完成后，携带获取的结果（参数/驱动文件等）**返回触发前的阶段**继续工作
+---
+## Skill Handoff Contract（跨 skill 上下文交接协议）
+
+本协议运行在多 skill 协作架构上：`embedded-dev` 持主流程（治理 / 计划 / 审查），24 个兄弟 skill 持操作执行（构建 / 烧录 / 调试 / 通信 / 分析）。所有跨 skill 调用必须遵守 `refs/contracts.md` 的统一接口。
+
+**核心约定**（详细字段定义见 `refs/contracts.md`）：
+
+1. **Project Profile** — 工程画像，由 RESEARCH 阶段调用 `python ~/.claude/skills/shared/project_detect.py` 生成，写入 `硬件资源表.md` 顶部，所有兄弟 skill 共用
+2. **统一动作词** — `detect` / `build` / `flash` / `attach` / `monitor` / `reset` / `verify`，每轮 EXECUTE 必须用这套动词描述操作
+3. **Command Outcome Schema** — 兄弟 skill 返回 4 种状态之一：`success` / `partial_success` / `blocked` / `failure`，并附带 `summary` / `evidence` / `next_action` / `failure_category`
+4. **Failure Taxonomy** — 失败必须归类到 `refs/failure-taxonomy.md` 的 7 类标准分类，作为 `failure_category` 字段值
+5. **决策硬规则**：
+   - 用户显式输入 > 自动探测结果
+   - 已有 Project Profile 时复用，不重复探测
+   - 产物优先级 `ELF > HEX > BIN`，`BIN` 烧录前必须有基地址，否则阻塞
+   - 多个同样合理的候选（板卡/探针/串口/preset） → 返回 `blocked` + 候选列表，不擅自挑选
+
+**跨 skill 协作示例**（已写入"操作执行层兄弟 skill 路由"表）：
+
+```
+Round 1: build-cmake (action: build) → success, artifact_path=build/app.elf
+Round 2: flash-openocd (action: flash) → success, verify ok
+Round 3: serial-monitor (action: monitor) → success, evidence=日志显示 "System Start"
+Round 4: 主协议 REVIEW 阶段执行验证门，整合三个 Outcome 出最终结论
+```
+
+跨平台路径、串口、权限差异规则见 `refs/platform-compatibility.md`，编写 EXECUTE 阶段命令时按需读取（特别是涉及 Linux/macOS/Windows 切换的多人协作工程）。

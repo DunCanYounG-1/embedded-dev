@@ -5,32 +5,31 @@
 ---
 
 
-## Grok-Search MCP — 主要网络搜索工具（最高优先级）
+## Grok-Search（Python CLI Skill）— 主要网络搜索工具（最高优先级）
 
 **适用场景**：所有需要联网检索的场景，包括搜索开源驱动、查报错解决方案、查竞赛经验帖、搜索数据手册下载链接、查询最新版本信息等。
 
-**实现**：GuDaStudio/GrokSearch（grok-with-tavily 分支），FastMCP 协议，提供三个 MCP 工具。
+**实现**：本地 Python CLI 脚本 `~/.claude/skills/grok-search/scripts/grok_search.py`，通过 OpenAI 兼容端点调用 Grok 模型。**不是 MCP 服务器**，只通过命令行调用。默认配置读自 `~/.claude/skills/grok-search/config.json`。
 
-**三个工具**：
+**唯一入口**：`--query "<检索词>"`。可选覆盖：`--model` / `--base-url` / `--api-key` / `--config` / `--timeout-seconds` / `--extra-body-json` / `--extra-headers-json`。
 
-| 工具 | 功能 | 典型用途 |
-|------|------|---------|
-| `web_search` | Grok AI 搜索（主力） | 搜索驱动、排错方案、竞赛经验、数据手册链接 |
-| `web_fetch` | Tavily Extract 网页内容提取 | 提取指定 URL 的结构化内容（需 Tavily API） |
-| `web_map` | Tavily Map 站点地图 | 获取网站 URL 结构（需 Tavily API） |
+**使用方式**（Bash 直接调用）：
 
-**使用方式**（MCP 工具调用，非 CLI）：
+```bash
+# 基本搜索
+python ~/.claude/skills/grok-search/scripts/grok_search.py --query "STM32F103 SSD1306 OLED driver StdPeriph site:github.com"
 
+# 临时切换模型（例如当前 channel 只剩某个模型可用）
+python ~/.claude/skills/grok-search/scripts/grok_search.py --query "..." --model grok-4.20-expert
 ```
-# 基本搜索 — 使用 web_search 工具
-web_search(query="STM32F103 SSD1306 OLED driver StdPeriph")
 
-# 提取网页内容 — 使用 web_fetch 工具（需 Tavily API Key）
-web_fetch(url="https://example.com/datasheet")
-
-# 获取站点地图 — 使用 web_map 工具（需 Tavily API Key）
-web_map(url="https://www.st.com/en/microcontrollers-microprocessors/stm32f103.html")
-```
+**输出格式**：stdout 打印一行 JSON，关键字段：
+- `ok`：布尔，是否成功
+- `content`：模型归纳后的答案（解析失败时为空字符串）
+- `sources`：URL 列表（含 title/snippet 可能为空）
+- `raw`：原始模型输出 — 当 `content` 解析失败时作为兜底，**务必读 raw**
+- `usage` / `elapsed_ms`：诊断
+- `error` / `detail`：失败时的错误信息
 
 **推荐搜索关键词模板**：
 - 驱动搜索：`STM32F103 SSD1306 OLED driver StdPeriph site:github.com`
@@ -41,9 +40,10 @@ web_map(url="https://www.st.com/en/microcontrollers-microprocessors/stm32f103.ht
 
 **调用原则**（八荣八耻）：
 - 以瞎猜接口为耻，以认真查询为荣 → 遇到不确定的信息，先用 grok-search 搜索
-- 以臆想业务为耻，以人类确认为荣 → 搜索结果需引用来源，不凭空杜撰
+- 以臆想业务为耻，以人类确认为荣 → 搜索结果需引用来源（看 `sources`），不凭空杜撰
 
 **容灾备份**：
+- 返回 `ok=false` 且 `error=HTTP 503`（`No available channel under group ...`）时：先用 `--model` 切换同分组的其他可用模型重试；若仍失败再走下一级降级
 - grok-search 不可用时：第一降级 Claude WebSearch → 第二降级用户手动搜索 → Sequential Thinking 仅用于整理已获取证据（禁止用于事实检索）
 
 ---
@@ -240,7 +240,7 @@ mcp2serial（Python 轻量版）：
 | 主工具 | 不可用时的备用方案 | 降级影响 | 恢复条件 |
 |--------|-------------|---------|---------|
 | **Context7 MCP** | 本地 refs / 官方 PDF → grok-search 搜索官方文档 | 需人工验证搜索结果 | Context7 服务恢复 |
-| **grok-search MCP** | Claude WebSearch → 手动查询 | 搜索质量下降 | 网络恢复 + API 可用 |
+| **grok-search (CLI Skill)** | Claude WebSearch → 手动查询 | 搜索质量下降 | 网络恢复 + API 可用 |
 | **gh CLI** | grok-search (`site:github.com`) → 手动访问 GitHub | GitHub 细节信息下降 | API 配额重置 |
 | **Sequential Thinking MCP** | 人工推理 + WebSearch | 推理效率下降 | 服务恢复 |
 | **Document Skills** | Claude 内置 Read 工具 → grok-search 搜索 | 文档处理能力降级 | Skill 恢复 |

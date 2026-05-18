@@ -68,7 +68,7 @@ gh api repos/<owner>/<repo>/contents/<path>  获取文件内容
 
 ```
 调用 grok-search：
-python ~/.claude/grok-search/scripts/grok_search.py --query "<芯片型号> datasheet pdf download site:st.com OR site:ti.com OR site:nxp.com"
+python ~/.claude/skills/grok-search/scripts/grok_search.py --query "<芯片型号> datasheet pdf download site:st.com OR site:ti.com OR site:nxp.com"
 ```
 
 **可信数据手册来源**（按优先级）：

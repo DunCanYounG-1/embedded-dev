@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# PostToolUse (Write|Edit|Bash) hook: remind Claude to update memory files
+# after modifying code or running commands.
+# Dual-track filename support; hooks fail open.
+
+set +e
+
+for f in 编辑清单.md edits.md; do
+  if [ -f "$f" ]; then
+    echo "[embedded-dev] 代码已修改，请更新 $f；如有引脚变更也更新 硬件资源表(hw-resources.md)；如有新发现也更新 研究发现(findings.md)。"
+    break
+  fi
+done
+
+exit 0

@@ -56,6 +56,15 @@ triggers:
   - "MICU 主板"
   - "MICU主板"
   - "CMIC 主板"
+  - "屎山"
+  - "重构嵌入式"
+  - "嵌入式重构"
+  - "分层架构"
+  - "代码规范"
+  - "解耦"
+  - "抽象层"
+  - "HAL 封装"
+  - "BSP 设计"
   - "网表"
   - "netlist"
   - "读网表"
@@ -69,30 +78,64 @@ triggers:
   - "check tools"
   - "检查所有mcp工具"
 hooks:
+  SessionStart:
+    - matcher: "startup|clear|compact"
+      hooks:
+        - type: command
+          command: "\"${HOME}/.claude/skills/embedded-dev/hooks/run-hook.cmd\" session-start.py"
+          async: false
   UserPromptSubmit:
     - hooks:
         - type: command
-          command: "for f in 项目规划清单.md 编辑清单.md 硬件资源表.md 研究发现.md; do test -f \"$f\" && echo \"[embedded-dev] 检测到 $f，请确保已读取最新内容。\" || true; done"
+          command: "\"${HOME}/.claude/skills/embedded-dev/hooks/run-hook.cmd\" check-memory-files"
   PreToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
         - type: command
-          command: "test -f 项目规划清单.md && (echo '[embedded-dev] 项目规划清单（前20行）:' && head -20 项目规划清单.md 2>/dev/null) || true; test -f 硬件资源表.md && (echo '[embedded-dev] 硬件资源表（芯片信息）:' && sed -n '/## 芯片与开发环境/,/## 引脚分配表/p' 硬件资源表.md 2>/dev/null | head -15) || true; test -f 研究发现.md && (echo '[embedded-dev] 研究发现（最近发现）:' && sed -n '/## 技术发现/,/^## /p' 研究发现.md 2>/dev/null | head -20) || true"
+          command: "\"${HOME}/.claude/skills/embedded-dev/hooks/run-hook.cmd\" inject-context"
   PostToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
         - type: command
-          command: "test -f 编辑清单.md && echo '[embedded-dev] 代码已修改，请更新 编辑清单.md、硬件资源表.md（如有引脚变更）、研究发现.md（如有新发现）。' || true"
+          command: "\"${HOME}/.claude/skills/embedded-dev/hooks/run-hook.cmd\" remind-update"
 ---
-<!-- Hooks 环境依赖说明：
-本 Skill 的 hooks 使用 POSIX shell 语法（test、head、sed、for/do 等）。
-Claude Code 在 Linux/macOS 下使用 bash/zsh，在 Windows 下使用 Git Bash，
-三种环境均能正确执行这些 POSIX 命令，因此 hooks 应能正常工作。
-若在纯 PowerShell / cmd 环境下使用 Claude Code，hooks 功能可能受限，
-但不影响核心协议流程。
+<!-- Hooks 设计说明：
+本 Skill 的 hooks 通过 hooks/run-hook.cmd polyglot 入口按扩展名分流：
+- hooks/session-start.py       — SessionStart：Python，注入协议引导（UTF-8 + Windows 路径规范化）
+- hooks/check-memory-files     — UserPromptSubmit：bash，检测四文件
+- hooks/inject-context         — PreToolUse(Write|Edit|Bash)：bash，注入清单片段
+- hooks/remind-update          — PostToolUse(Write|Edit|Bash)：bash，提示更新清单
+
+run-hook.cmd 是 cmd.exe + bash 双语法 polyglot 文件，按脚本扩展名分流：
+- .py 后缀 → 调用 python3 / python（Trellis 借鉴：处理 Windows 路径规范化、UTF-8 强制）
+- 无扩展名 → 调用 bash（Linux/macOS 原生 / Windows 用 Git Bash）
+- Python / bash 均不可用时静默 exit 0（hooks fail open，不阻塞协议主流程）
+
+【启动自检】Claude 在首条收到用户消息后必须运行一次：
+  test -f /dev/null && echo "[embedded-dev] hooks env: ok" || echo "[embedded-dev] hooks env: degraded"
+degraded 时告知用户 hooks 不工作，但协议规则仍由 Claude 自行遵守。
 -->
 
 # RIPER-5 嵌入式芯片开发协议
+
+## 文件名双轨约定（i18n / 跨平台必读）
+
+四文件磁盘记忆系统支持**两套等价命名**，避免中文文件名在 CI / Docker / 非 UTF-8 locale 下编码崩溃：
+
+| 中文正名（默认） | 英文别名（i18n / CI 友好） | 用途 |
+|---|---|---|
+| `项目规划清单.md` | `plan.md` | RIPER-5 总体计划与轮次目标 |
+| `编辑清单.md` | `edits.md` | 每次文件改动 / Git 快照记录 |
+| `硬件资源表.md` | `hw-resources.md` | 芯片型号 / 引脚分配 / DMA / 中断 |
+| `研究发现.md` | `findings.md` | RESEARCH 阶段搜集的事实与证据 |
+
+**Claude 操作规则**：
+
+1. **读取**：两个名字都查；找到任何一个就用，**禁止**对同一文件维护两份副本
+2. **新建**：默认按用户对话语言选名（用户用中文 → 中文名；英文 → 英文名）；用户明确指定则按用户的
+3. **现有项目**：尊重项目里已有的命名，不要擅自重命名
+4. **章节标题**：两套命名下文档章节同时支持中英文（如 `## 芯片与开发环境` 等价于 `## Chip & Toolchain`），见 `refs/checklist-templates.md`
+5. **hook 与文档引用**：本 skill 内文档以中文名为主表述（历史原因），但 hook 命令自动匹配两套，不需要逐个改写
 
 ## Vibe 执行壳
 
@@ -201,6 +244,17 @@ git push
 - 回档完成后，必须同步更新 `编辑清单.md`（记录回档前后 commit hash 与原因）
 ### 模式声明要求
 **必须**在每个回复开头用方括号声明当前模式：`[MODE: MODE_NAME]`
+
+### 环境自检（首次收到用户消息后执行一次）
+当你**收到本会话首个用户消息后**，在 RESEARCH 阶段首条响应里通过 Bash 工具跑一次：
+```bash
+test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
+                  || echo "[embedded-dev] hooks env: degraded"
+```
+- 输出 `ok`：hooks 可用，按协议运行
+- 输出 `degraded`（PowerShell/cmd 无 POSIX 工具）：向用户报告，hooks 不工作但**协议主流程仍生效**，Claude 自行手动遵守"读四文件、改后更新清单"规则
+- 本检测同一会话只跑一次，不要每轮重复
+- **不要**在收到用户消息之前主动执行命令；SessionStart hook 注入的引导文本只是规则告知，不是执行触发
 ### 自动模式转换
 支持自动模式启动和转换。每个模式完成后，如果没有需要用户确认的方案或反问，自动进入下一模式。
 ### 初始模式判断
@@ -224,255 +278,35 @@ git push
 7. **复用优先思维**：构建项目时，**优先搜索并移植成熟外设驱动库**，而非从零编写；只有在无合适开源驱动、或驱动严重不符合项目约束时，才自行实现
 8. **资源感知思维**：实时感知项目进度中的资源状态（编译错误数、测试通过率、剩余时间），动态调整策略优先级。
 ---
-## 五个模式详情
-### 模式1：RESEARCH（研究）
+## 五个模式总览（详细规则见 `refs/riper5-stages.md`）
 
-**目的**：信息收集和深入理解
-**允许**：读取文件、询问硬件规格、理解代码结构、分析系统架构、识别技术债务、创建任务文件、识别固件库类型
-**禁止**：实施更改、规划、给出最终决策方案（允许基于事实约束列出候选分配，但不做最终推荐）
-**步骤**：
+| 模式 | 目的 | 允许 | 严禁 | 完成后 |
+|---|---|---|---|---|
+| **RESEARCH** | 信息收集 | 读文件、问硬件规格、识别芯片/库、引脚规划 | 改代码、给最终方案 | → INNOVATE |
+| **INNOVATE** | 方案脑暴 | 评估候选、对比方案 | 写代码、承诺具体方案 | → PLAN |
+| **PLAN** | 详细规格 | 文件路径/函数签名/寄存器配置/审查标记 | 任何代码实现、占位符 | → EXECUTE |
+| **EXECUTE** | 按计划执行 | 实现清单项、轮次证据、Git 存档 | 计划外改进、跳过验证 | → REVIEW（失败→PLAN）|
+| **REVIEW** | 验证门 + 合规 + 质量 | 跑命令验证、对照硬件资源表、调用 `/simplify` | 用"应该"/"理论上"声明完成 | 结束 |
 
-1. **【最高优先级】搜索现有资料和开源方案**：在开始深入分析代码前，按以下优先级查找：
-   - **第一步**：查阅离线索引 `refs/embed-libs-index.md`（RTOS/按键/日志/通信等分类速查）和 `refs/stm32-stdperiph-api.md` / `refs/stm32-hal-api.md`（STM32 API 速查）
-   - **第二步**：离线索引未覆盖时，用 `gh api repos/zhengnianli/EmbedSummary/readme` 检索 EmbedSummary
-   - **第三步**：仍无结果时，用 `gh` CLI 和 grok-search 扩大搜索：
-   - 是否有现成的成熟驱动/库/参考实现
-   - 是否有相同芯片/相同应用的竞赛经验帖或开源项目
-   - 是否有官方示例代码或 SDK
-   - **八荣八耻原则**：以创造接口为耻，以复用现有为荣。搜索结果将直接决定后续技术路线
-2. **识别芯片平台和固件库**：
-   - **优先调用工程画像探测器**（一键完成构建系统/芯片/产物识别）：
-     ```bash
-     python ~/.claude/skills/shared/project_detect.py <工作区路径>
-     ```
-     输出标准化 `Project Profile`（字段定义见 `refs/contracts.md`）：`workspace_root` / `workspace_os` / `build_system` / `target_mcu` / `probe` / `artifact_path` / `artifact_kind` / `serial_port` 等。
-   - 探测器无法识别或字段缺失时，回退到人工识别：检查文件包含、API 调用、项目结构（参见原识别规则）
-   - 探测结果写入 `硬件资源表.md` 顶部"芯片与开发环境"段落
-3. 分析任务相关代码（核心文件/函数、代码流程、中断例程）
-4. 检查外设配置和硬件交互
-5. 审查时钟设置和时序
-6. 记录 API 模式
-7. **【关键】引脚规划与冲突检测**（在收集引脚连接信息前，先触发网表检测（见 `modes/netlist-lookup.md`），若项目存在网表文件则优先从网表提取引脚分配，跳过手动收集，但约束验证和冲突检测始终执行）：收集所有外设需求，进行引脚分配规划：
-   - 列出需要的外设（串口、I2C、SPI、ADC、PWM、GPIO 等）
-   - **查询引脚约束和复用功能**：
-     1. 优先用 grok-search 搜索官方 pinout 文档（`"{芯片型号} pinout datasheet GPIO alternate functions site:官网"`）
-     2. 用 Document Skills (`/pdf`) 提取引脚复用表
-     3. 用 Sequential Thinking MCP 辅助分析（若需要复杂推理）
-   - 检查调试口（SWDIO/SWCLK）和烧录口是否被占用
-   - 检查 STRAP 引脚是否正确配置
-   - 检测引脚冲突（同一引脚的多重复用功能）
-   - 参考 `refs/pin-planning.md` 生成推荐分配方案
-   - 生成冲突警告（如有）
-   - **禁止**：未查询数据手册直接使用"默认引脚"或凭经验分配
-   - **阻塞条件**：若官方 pinout/datasheet/netlist 均不可得，则暂停引脚分配，向用户索取资料，不得进入 PLAN/EXECUTE
-8. **生成/更新 `硬件资源表.md`**：读取项目代码，提取芯片型号、开发框架、引脚分配、DMA/中断等硬件资源信息，写入工程根目录的 `硬件资源表.md`（若已存在则比对更新）。格式见 `refs/checklist-templates.md` 中的硬件资源表模板，**引脚分配表填入步骤7的规划结果**
-9. 记录搜索到的候选驱动/方案，供 INNOVATE 阶段评估
-**输出**：以 `[MODE: RESEARCH]` 开头，按“已确认事实 / 证据来源 / 未确认问题”输出；若任务将进入多轮治理，补充 `trace_id` 和建议轮次拆分
-**完成后**：自动进入 INNOVATE 模式
----
-### 模式2：INNOVATE（创新）
+**详细步骤、输出格式、验证证据要求、零占位符规则、兄弟 skill 路由表、反自欺检查表**：见 `refs/riper5-stages.md`。下列入口段保留在主文件供快速参考。
 
-**目的**：头脑风暴潜在方案
-**核心原则**：优先评估和复用 RESEARCH 阶段找到的现有开源方案/驱动/库，而非从零设计。
-**允许**：讨论多种方案、评估优缺点（功耗/时间/内存）、征求反馈、探索架构替代方案
-**禁止**：具体规划、实现细节、代码编写、承诺特定方案
-**步骤**：
+### 阶段关键引用入口（按需读 refs/riper5-stages.md 对应段）
 
-1. **【最高优先级】评估 RESEARCH 阶段找到的现有方案**：
-   - 用 `gh search repos` / grok-search 进一步筛选和对比候选方案
-   - 参考 `refs/driver-porting.md` 中的"驱动库移植优先原则"评估可移植性
-   - **八荣八耻原则**：以瞎猜接口为耻，以认真查询为荣；以创造接口为耻，以复用现有为荣
-   - 将筛选结果作为方案对比的起点
-   **评估流程**：
-   - 1. 筛选候选方案（按成熟度、维护活跃度、项目匹配度排序）
-   - 2. 前 3 名进入详细对比
-   - 3. 若无合适方案或现有方案严重不符合约束，进入"自行实现"决策门
-   - 4. 决策门触发条件：无匹配开源方案 / 现有方案 License 不兼容 / 现有方案资源需求超限
-2. 基于研究创建方案（硬件依赖、多种实现方法如中断/轮询/DMA、自行实现 vs 移植现有驱动）
-3. 评估 CPU 负载、延迟、资源使用
-4. 确保与已识别固件库兼容
-**输出**：以 `[MODE: INNOVATE]` 开头，仅提供可能性和考量
-**完成后**：自动进入 PLAN 模式
----
-### 模式3：PLAN（计划）
+- **RESEARCH 步骤 1**：复用搜索 → `refs/embed-libs-index.md` / `refs/stm32-stdperiph-api.md` / `refs/stm32-hal-api.md` / `refs/gd32f4xx-api.md`
+- **RESEARCH 步骤 2**：工程画像探测 → `python ~/.claude/skills/shared/project_detect.py <ws>`；字段定义 `refs/contracts.md`
+- **RESEARCH 步骤 7**：引脚规划 → `refs/pin-planning.md`；网表优先 → `modes/netlist-lookup.md`
+- **INNOVATE 步骤 1**：驱动移植评估 → `refs/driver-porting.md`
+- **PLAN 架构硬约束**：`main.c` 仅做编排；零占位符规则；**每个新文件必须标明层级（L1~L6）+ 命名前缀 + #include 白名单**（依据 `refs/embedded-architecture.md`）
+- **PLAN 三件套**（反 rationalization）：Iron Law（清单必须含路径+验证+review+层级）+ Red Flags（占位符/缺层级/单轮多文件）+ Rationalization Table（"后续步骤再想" 等 7 条逃避路线）— 详见 `refs/riper5-stages.md` PLAN 段
+- **EXECUTE 兄弟 skill 路由表**：完整 10 行操作类型 → skill 映射，见 `refs/riper5-stages.md` 模式 4 段
+- **EXECUTE 失败分类**：`refs/failure-taxonomy.md` 7 类标准
+- **EXECUTE 轮次制**：证据包格式 → `refs/vibe-workflow.md`
+- **EXECUTE 三件套**（反 rationalization）：Iron Law（完成声明必须当前消息内有命令+输出+对照）+ Red Flags（"应该" / "Great!" / 跳审查门 / 一轮多改 / app 层 include 厂商头）+ Rationalization Table（"编译通过就是对" 等 12 条逃避路线）— 详见 `refs/riper5-stages.md` EXECUTE 段
+- **REVIEW Step 1 验证门**：Iron Law — 证据先于声明
+- **REVIEW Step 2 硬件合规**：核对 `硬件资源表.md`
+- **REVIEW Step 3 代码质量**：调用 `/simplify`；**必跑分层合规检查**（`refs/embedded-architecture.md` §7 依赖方向检查表 + §8 屎山预警信号）
+- **REVIEW 反自欺检查表**：禁用"应该 / 理论上 / 差不多"
 
-**目的**：创建详细技术规格，标记每步是否需要交互审查
-**允许**：详细计划（文件路径、函数签名、寄存器配置）、标记 `review:true/false`、定义每轮目标和验证标准
-**禁止**：任何实现或代码编写、跳过规格、遗漏审查标记
-**架构硬约束**：
-- 计划中必须明确 `main.c` 只承担启动编排和顶层循环调度，禁止把寄存器配置、协议解析、算法流程或状态机细节直接堆进 `main()`
-- 需要改动 `main.c` 时，必须同时给出拟新增或拟复用的模块 API（如 `Board_Init()`、`App_Init()`、`App_RunOnce()`），说明调用顺序和归属文件
-- 计划中必须写清模块边界、公共 API、私有静态函数和依赖方向，避免 EXECUTE 阶段临时拼接耦合代码
-**审查标记规则**：
-设置 `review:true` 的情况：
-
-- 编写/修改代码
-- 创建/编辑/删除文件
-- 需要用户验证的命令
-- 关键硬件配置（中断优先级、时钟、DMA）
-- AI 认为需要用户迭代确认的操作
-设置 `review:false` 的情况：
-- 纯问答、概念解释
-- 内部计算并报告结果
-- AI 确信输出简单清晰
-- 用户明确表示无需详细审查
-**必须的最终步骤**：转换为编号清单。若任务跨多文件或多轮，按轮次拆分；每项至少包含操作、验证标准、`review:true/false`，必要时补充责任角色和停止条件。
-```
-实施清单：
-1. [具体操作1, verify:<验证标准>, review:true]
-2. [具体操作2, verify:<验证标准>, review:false]
-...
-n. [最终操作, verify:<验证标准>, review:true]
-```
-**计划自审（零占位符规则）**：
-输出清单前必须扫描，**禁止以下内容出现在实施清单中**：
-- ❌ "后续实现"、"待定"、"TBD"、"TODO"、"暂不处理"
-- ❌ "参照步骤N"、"类似于XXX"、"同上"（每步必须独立完整）
-- ❌ "需要时再..."、"如果需要..."、"视情况..."（模糊条件）
-- ❌ 省略号 `...` 代替实际内容
-- ✅ 每步必须包含：具体文件路径、操作内容、验证标准
-发现占位符 → 立即补全后再输出清单。
-**输出**：以 `[MODE: PLAN]` 开头
-**完成后**：自动进入 EXECUTE 模式
----
-### 模式4：EXECUTE（执行）
-
-**目的**：严格按计划执行，并按轮次制交付证据，根据审查标记有选择地进行用户确认
-**允许**：仅实现计划中明确的内容、标记已完成项、小偏差修正并报告、更新任务进度、输出轮次证据包
-**禁止**：未报告偏差、计划外改进、重大逻辑变更（须回 PLAN）、跳过代码
-**小偏差处理**：先报告再执行，涉及逻辑/算法/架构的变更必须回 PLAN 模式
-
-**操作执行层兄弟 skill 路由（强制优先调用，禁止手敲命令重造轮子）**：
-
-涉及"真去跑命令"的步骤，**必须**路由到对应兄弟 skill，不要在 EXECUTE 内手写 Bash 命令再现造一遍，因为兄弟 skill 已封装：① 工程画像探测、② 工具路径解析（`em_config.py`）、③ 跨平台路径处理、④ 标准化 `Command Outcome` 输出（status / summary / evidence / next_action / failure_category）。
-
-| 操作类型 | 优先 skill | 何时使用 |
-|---------|-----------|---------|
-| 编译 CMake / Keil / IAR / PlatformIO / ESP-IDF / Makefile 工程 | `/build-cmake` `/build-keil` `/build-iar` `/build-platformio` `/build-idf` `/build-makefile` | 需要 ELF/HEX/BIN 产物时 |
-| 烧录 OpenOCD / Keil / PlatformIO / ESP-IDF / J-Link | `/flash-openocd` `/flash-keil` `/flash-platformio` `/flash-idf` `/flash-jlink` | 已有 artifact 需要下载到 MCU 时；BIN 烧录前必须明确基地址 |
-| GDB 在线调试（下载/附着/崩溃排查） | `/debug-gdb-openocd` `/debug-jlink` `/debug-platformio` | 需要单步、断点、查看寄存器或栈帧时 |
-| 串口日志抓取 | `/serial-monitor` | 验证固件运行、查看 printf/log 输出 |
-| Modbus / CAN / VISA 通信调试 | `/modbus-debug` `/can-debug` `/visa-debug` | 工业总线寄存器读写、CAN 帧监听、仪器 SCPI 通信 |
-| 内存使用报告 / RTOS 线程检查 | `/memory-analysis` `/rtos-debug` | .map/ELF 内存超限分析；FreeRTOS 任务/栈水位/死锁排查 |
-| 静态分析 / MISRA 合规 | `/static-analysis` | 提交前代码扫描 |
-| 外设驱动搜索→评估→适配 | `/peripheral-driver` | 新接传感器/显示屏/存储芯片时（与"驱动库移植优先原则"配合） |
-| STM32 CubeMX HAL 工程开发 | `/stm32-hal-development` | 需要 BSP 模板、HAL 速查、HAL 专属 troubleshooting |
-| 编译→烧录→监控/调试 串接 | `/workflow` | 一个命令完成完整链路 |
-
-**调用规范**：
-1. 在轮次声明里标注"本轮将调用 `<skill 名>` 执行 `<动作词>`"，动作词使用 `refs/contracts.md` 的统一动词（detect / build / flash / attach / monitor / reset / verify）
-2. skill 返回 `Command Outcome` 后，将 `status` / `evidence` / `next_action` 写入 `编辑清单.md` 本轮记录
-3. `status != success` 时，按 `refs/failure-taxonomy.md` 的 7 类标准化失败分类决定下一步：
-   - `environment-missing` → 修复缺失依赖后重试，禁止跳过
-   - `project-config-error` → 回 PLAN 修配置
-   - `connection-failure` / `permission-problem` → 阻塞，向用户索取硬件 / 权限确认
-   - `artifact-missing` → 回 build skill 重新产出
-   - `target-response-abnormal` → 进入 `refs/systematic-debugging.md` 流程
-   - `ambiguous-context` → 列候选向用户裁决，禁止猜测
-4. skill 间交接遵循 `refs/contracts.md` 的 Skill Handoff Contract：保留 Project Profile、已执行命令、关键证据、推荐下一步
-**轮次制规则**：
-
-1. 执行前声明当前轮次、`trace_id`、目标、验证标准、停止条件
-2. 每轮只推进一个改动点；发现需要扩大范围时先报告
-3. 每轮结束按 `refs/vibe-workflow.md` 交付证据包和 3 句交接摘要
-4. 碰到红线（新增依赖、改动超过 5 个文件、修改根目录配置、连续两轮无法确认根因）时立即停止并回 PLAN 或请求用户裁决
-**review:true 流程**：
-1. 完整展示本步骤的代码/配置变更与验证证据
-2. 输出审查门提示，等待用户回复
-3. 用户提出修改意见 → 迭代修改后再次展示
-4. 用户确认通过 → 执行自动 Git 存档（`git add -A` → `git commit`，有远端则 `git push`）并记录 commit hash 到 `编辑清单.md`
-5. 存档完成后关闭审查门，继续下一步
-**review:false 流程**：
-1. 展示执行结果与验证证据
-2. 请求直接确认
-3. 用户确认后执行自动 Git 存档（无变更则跳过并写入 `编辑清单.md`）
-**后续决定**：
-- 失败 → 回 PLAN 模式
-- 成功且有剩余项 → 执行下一项
-- 全部成功 → 进入 REVIEW 模式
-**代码质量标准**：
-- 完整代码上下文，指定语言和路径
-- 对寄存器和 ISR 共享变量使用 `volatile`
-- 必要时使用原子操作
-- 谨慎处理临界区
-- 一致遵循库特定编程模式
-- `main.c` 仅允许保留初始化 API 编排、主循环调度、喂狗/低功耗入口等顶层职责；超过 10 行的连续业务/算法/寄存器逻辑必须下沉为模块 API
-- 公共接口放 `.h`，私有辅助函数放对应 `.c` 且优先 `static`；禁止跨模块直接访问内部变量或把实现细节泄漏到 `main.c`
-- 长函数优先拆分为单一职责函数；参数超过 3 个时优先收敛为配置结构体，嵌套层级优先控制在 2 层以内
-- 不得用“理论上可行”替代实际验证结论
----
-### 模式5：REVIEW（审查）
-**目的**：全面验证最终结果与初始需求和最终计划的一致性。采用三步审查流程：验证门 → 硬件合规 → 代码质量。
-
-#### Step 1: 验证门（Iron Law — 证据先于声明）
-
-**铁律：没有验证证据，不得声明完成。**
-
-对每个完成声明执行验证门：
-1. **IDENTIFY**：什么命令/操作能证明这个声明？（编译命令、测试命令、示波器测量）
-2. **RUN**：实际执行该命令
-3. **READ**：完整读取输出，检查退出码/返回值
-4. **VERIFY**：输出是否明确确认声明？
-5. **ONLY THEN**：发出完成声明
-
-**常见验证对照**：
-| 声明 | 必须的证据 |
-|------|-----------|
-| "编译通过" | 编译命令输出 + 退出码 0 + 无 warning（或已说明的 warning） |
-| "功能正常" | 实际运行结果 / 串口日志 / 示波器波形 |
-| "引脚配置正确" | 对照数据手册 + 硬件资源表逐项确认 |
-| "中断工作正常" | 中断触发证据（GPIO 翻转/串口计数/断点命中） |
-| "DMA 传输完成" | DMA 完成标志位 + 目标缓冲区数据正确 |
-
-#### Step 2: 硬件合规审查（Spec Compliance）
-
-- 逐行比较最终计划与实现
-- **核对代码与 `硬件资源表.md` 一致性**（引脚配置、DMA 通道、中断优先级、时钟分频是否与表中记录匹配，不匹配则更新资源表或修正代码）
-- 对照硬件规格技术验证
-- 检查竞态条件、时序问题
-- 验证 `volatile` 和原子操作使用
-- 验证设备约束内的内存和资源使用
-
-#### Step 3: 代码质量审查（Code Quality）
-
-- 库特定模式一致性（HAL/StdPeriph/ESP-IDF 风格统一）
-- 命名规范、代码结构
-- `main.c` 是否仍是纯编排入口，而不是掺杂大段驱动细节、协议分支或算法实现
-- 模块边界是否清晰：公共 API、私有实现、依赖方向、配置结构体是否满足可解耦和可维护要求
-- 临界区保护是否完整
-- 可调用 `/simplify` skill 自动检查代码复用性、效率和质量问题
-- 默认以 Verifier 视角给出结论；若验证未跑通，明确标记为未完成而非"基本可用"
-
-#### 反自欺检查表（Rationalization Prevention）
-
-**审查过程中若出现以下念头，必须立即停下来验证：**
-
-| 你在想什么 | 现实 | 正确做法 |
-|-----------|------|---------|
-| "编译通过了，应该没问题" | 编译通过 ≠ 功能正确 | 回到 Step 1 验证门 |
-| "这个寄存器配置应该对的" | "应该"不是证据 | 打开数据手册逐位确认 |
-| "中断优先级应该够用" | 最坏情况可能嵌套溢出 | 画出中断嵌套路径，计算最坏栈深 |
-| "我确定引脚没冲突" | 你的记忆不如文件可靠 | 打开硬件资源表逐条核对 |
-| "DMA 不会和别的外设冲突" | DMA 通道共享是常见陷阱 | 检查 DMA 通道映射表 |
-| "时钟配置没动过，肯定没问题" | 新外设可能改变分频需求 | 重新计算分频链 |
-| "上次这样改好用的" | 环境不同，不能套用 | 从当前证据出发重新验证 |
-| "差不多可以了" | "差不多"是 bug 的温床 | 要么完全正确，要么标记未完成 |
-
-> **关键规则**：在 REVIEW 输出中，禁止使用"应该"、"理论上"、"大概"、"基本上"等模糊词汇来声明完成。只允许"已验证"或"未验证"。
-
-**结论格式**：
-```
-[已验证] 实现完美匹配最终计划。验证证据：[列出具体证据]
-```
-或
-```
-[未验证] 实现与最终计划存在偏差：[描述]。待验证项：[列出]
-```
-
-**失败分类标准化**：当输出 `[未验证]` 或子任务 `status != success` 时，必须用 `refs/failure-taxonomy.md` 的 7 类标准分类标注偏差类别（`environment-missing` / `project-config-error` / `connection-failure` / `artifact-missing` / `target-response-abnormal` / `permission-problem` / `ambiguous-context`），并按该文件的"响应要求"给出最小修复动作；禁止用"应该""可能""差不多"等模糊词代替分类。
-**偏差处理**：发现偏差后，架构/逻辑级偏差 → 返回 PLAN 重新出实施清单；纯实现细节偏差 → 返回 EXECUTE 修正对应步骤。
-> 遇到复杂调试问题时，按 `refs/systematic-debugging.md` 的四阶段根因分析方法执行。
-> **闭环控制系统专题**：若怀疑症状是"调参调不好 + 方向反 + 震荡"组合，按 `refs/control-loop-sign-debug.md` 的"符号陷阱 + 观察模式对照实验法"排查。典型触发场景：PID/前馈输出方向错、Kp 调到很低才稳、多轮调参治标不治本。
 ---
 ## 磁盘工作记忆机制（四文件体系）
 
@@ -543,6 +377,28 @@ n. [最终操作, verify:<验证标准>, review:true]
 ---
 ## 代码处理指南
 
+### 嵌入式分层架构（**生成任何代码前必读**）
+
+**核心铁律**：应用层禁止 `#include` 厂商 HAL 头（如 `stm32f4xx_hal.h` / `gd32f4xx.h` / `esp_system.h`）。所有跨硬件访问必须走 **HAL Port 抽象接口**。这是 skill 生成的代码**不变成屎山**的唯一标准。
+
+**层级与命名前缀**（自下而上）：
+| 层级 | 前缀 | 职责 |
+|---|---|---|
+| L0 vendor HAL/LL | `HAL_` / `LL_` | 厂商提供，仅 L1 端口实现 `#include` |
+| L1 HAL（项目级） | `hal_` | 项目自封装薄层、统一接口 |
+| L2 BSP | `bsp_` | 板载引脚、时钟、上电编排 |
+| L3 Driver | `drv_<device>_` | 传感器/Flash/OLED 等设备协议 |
+| L4 Middleware | `mid_` | RTOS/协议栈/文件系统 |
+| L5 Service | `svc_` | OTA/日志/参数管理 |
+| L6 Application | `app_` | 业务逻辑、状态机、调度（**通过接口调用下层**） |
+
+**RIPER-5 集成钩子**：
+- **PLAN 阶段**：实施清单中每个新文件**必须**标明层级与命名前缀；列出 `#include` 白名单；列出新增 Port（如有）
+- **EXECUTE 阶段**：写每个 `.c/.h` 前先确认层级；按层级目录组织文件
+- **REVIEW 阶段**：跑"依赖方向检查表"（见 `refs/embedded-architecture.md` §7）；任一不通过 → 标记未验证回 EXECUTE
+
+> 完整分层定义、目录骨架、Ports & Adapters 实例代码、命名硬规则、屎山预警信号、依赖方向检查表见 `refs/embedded-architecture.md`。RESEARCH 阶段分析项目结构、PLAN 阶段规划文件归属、EXECUTE 阶段写代码、REVIEW 阶段做合规检查时**都必须读取**。
+
 ### IMU / 陀螺仪姿态解算检查清单
 
 **核心规则**：涉及 MPU6050、ICM20602、BMI088 等 IMU 传感器的姿态解算（互补滤波/卡尔曼滤波）时，必须逐项核对轴匹配、量程、DLPF、滤波系数等关键参数。
@@ -570,7 +426,7 @@ n. [最终操作, verify:<验证标准>, review:true]
 |--------|---------|---------|
 | **标准外设库 (StdPeriph)** | `refs/stm32-stdperiph-api.md` | RCC/GPIO/USART/SPI/I2C/DMA/TIM/ADC/NVIC/EXTI 全套 API、结构体、引脚表、DMA 通道映射 |
 | **HAL 库** | `refs/stm32-hal-api.md` | GPIO/UART/SPI/I2C/DMA/TIM/ADC 全套 API、句柄配置、回调函数、MSP 初始化、StdPeriph↔HAL 对照表 |
-| **GD32F4xx 标准外设库**（兆易创新） | `refs/gd32f4xx-api.md` | RCU/GPIO/USART/SPI/I2C/DMA/TIMER/ADC/NVIC 全套 API、与 STM32 StdPeriph 差异、DMA 通道 × SUB 表、GD32F470VET6 板载 BSP 引脚速查、Bootloader/UART OTA 分区，附本地 GD32F470 主板模板路径 |
+| **GD32F4xx 标准外设库**（兆易创新） | `refs/gd32f4xx-api.md` | RCU/GPIO/USART/SPI/I2C/DMA/TIMER/ADC/NVIC 全套 API、与 STM32 StdPeriph 差异、DMA 通道 × SUB 表、GD32F470VET6 板载 BSP 引脚速查、Bootloader/UART OTA 分区。仓库按四级链解析：环境变量 `GD32_SDK_ROOT` → 工程 `硬件资源表.md` → skill 内置 `$HOME/.claude/skills/embedded-dev/mcu_-gd_-main-board-master/` → 远程 <https://gitee.com/Ahypnis/mcu_-gd_-main-board> |
 > **优先级规则**：STM32 HAL/StdPeriph API 查询 → 先查本地离线 refs → 离线缺失或不确定 → Context7 MCP → 再失败 → grok-search。此规则**优先于**辅助工具调用规范中 Context7 的通用优先级。
 >
 > RESEARCH 阶段识别固件库后，根据库类型加载对应文件。EXECUTE 阶段编写代码时按需查阅函数签名和常量。

@@ -1,0 +1,8 @@
+# Shell / Python scripts must use LF endings. Git's autocrlf would otherwise
+# insert CRLF on Windows checkout, which makes bash refuse to run them
+# (shebang + \r) and breaks Python shebang execution on Unix.
+hooks/run-hook.cmd       text eol=lf
+hooks/session-start.py   text eol=lf
+hooks/check-memory-files text eol=lf
+hooks/inject-context     text eol=lf
+hooks/remind-update      text eol=lf

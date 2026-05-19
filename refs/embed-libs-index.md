@@ -127,6 +127,39 @@
 
 ---
 
+### 2.15 控制系统 / 信号处理 / 系统辨识
+
+> 嵌入式数学副驾。**首选 MATLAB MCP**（用户本机已装）— 调用方式见 `modes/matlab-embedded-toolkit.md`。下面列开源备选（无 MATLAB 时降级用）。
+
+| 库名 | 链接 | 说明 | 适用场景 |
+|------|------|------|---------|
+| **python-control** | https://github.com/python-control/python-control | Python 控制系统库，API 仿 MATLAB | `lqr` / `place` / `pidtune` / `c2d` 等离线设计；MATLAB 不可用时降级 |
+| **scipy.signal** | https://docs.scipy.org/doc/scipy/reference/signal.html | 数字滤波器设计与信号处理 | FIR/IIR 设计、Butterworth、Chebyshev、FFT、卷积 |
+| **scipy.linalg** | https://docs.scipy.org/doc/scipy/reference/linalg.html | 线性代数（含 ARE 求解器） | `solve_continuous_are` / `solve_discrete_are` 算 LQR 增益 |
+| **CMSIS-DSP** | https://github.com/ARM-software/CMSIS-DSP | ARM 官方 DSP 库（FIR/IIR/FFT/矩阵乘） | Cortex-M 上跑滤波器、LQR 矩阵乘、FFT |
+| **Eigen** | https://eigen.tuxfamily.org/ | C++ 模板矩阵库 | 嵌入式 C++ 项目；header-only，无依赖 |
+| **FilterPy** | https://github.com/rlabbe/filterpy | Python Kalman/EKF/UKF 库 | 离线设计观测器，导出参数到 MCU |
+| **cantools** | https://github.com/cantools/cantools | Python CAN 数据库工具（.dbc 解析） | 无 MATLAB Vehicle Network Toolbox 时分析 CAN 日志 |
+| **AutoLQR (Arduino)** | https://github.com/lily-osp/AutoLQR | Arduino 上的预计算 LQR 实例 | 极简自平衡 / 倒立摆 demo 参考 |
+| **EmbedSummary 控制专题** | https://github.com/zhengnianli/EmbedSummary | 总目录里有 PID / Kalman / FOC 等专题分类 | 找其他特定算法实现时 |
+
+**速查路由**：
+
+| 任务 | 走哪条路 |
+|---|---|
+| 算 K 矩阵 / PID 参数 | MATLAB MCP（`mcp__matlab__*`） → 缺时 python-control |
+| 滤波器在线运行 | CMSIS-DSP（C 端）；系数由 MATLAB / scipy.signal 离线算 |
+| Kalman 离线设计 | MATLAB `kalman()` / FilterPy；运行用 CMSIS-DSP 矩阵乘手写 |
+| CAN 日志解析 | MATLAB Vehicle Network Toolbox / cantools |
+| 矩阵运算（嵌入式） | CMSIS-DSP（Cortex-M）/ Eigen（C++ 项目） |
+
+**与 embedded-dev skill 的协作**：
+
+- 触发关键词（`LQR` / `滤波器设计` / `系统辨识` / `卡尔曼` / `FFT` 等）→ 自动进 `modes/matlab-embedded-toolkit.md`
+- 增益矩阵 / 滤波系数 / 查表 → 用 `tools/export_gains_to_c.py` 一键导出 C 头文件
+
+---
+
 ## 3. GUI 图形库
 
 | 库名 | 链接 | 说明 | 适用场景 |

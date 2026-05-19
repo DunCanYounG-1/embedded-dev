@@ -110,6 +110,92 @@ gh repo clone owner/repo                               # clone 评估
 
 ---
 
+## 10. MATLAB MCP（数学副驾 — 8 场景综合工具箱）
+
+**适用**：所有需要 MATLAB 算力的嵌入式开发场景。MathWorks 2025-11 发布的 [MATLAB MCP Core Server](https://github.com/matlab/matlab-mcp-core-server) 已与 Claude Code 原生集成。
+
+**调用**：直接用 Claude Code 内置 MCP 工具（`mcp__matlab__*`）。
+
+### 10.1 四个核心工具
+
+| 工具 | 用途 | 典型场景 |
+|---|---|---|
+| `mcp__matlab__detect_matlab_toolboxes` | 列出已装 toolbox 与版本 | 流程开始前必跑（决定是否降级） |
+| `mcp__matlab__check_matlab_code` | 静态分析 .m 脚本（不执行） | 调用前先检查语法 |
+| `mcp__matlab__evaluate_matlab_code` | 执行内联 MATLAB 命令 | 单步计算 / 验证 / 一次性脚本 |
+| `mcp__matlab__run_matlab_file` | 执行 .m 文件 | 长脚本 / 仿真 / 多步流程 |
+| `mcp__matlab__run_matlab_test_file` | 跑 MATLAB 单元测试 | 验证脚本正确性 |
+
+### 10.2 调用模板
+
+**最简单：单行计算**：
+
+```python
+mcp__matlab__evaluate_matlab_code(code="""
+    A = [0 1; -1 -0.1];
+    B = [0; 1];
+    Q = eye(2);
+    R = 1;
+    K = lqr(A, B, Q, R);
+    disp(K);
+""")
+```
+
+**带数据返回**：MATLAB 端 `disp()` / `fprintf()` 的内容会回到 stdout；矩阵建议先 `save()` 到 .mat / .csv 再用 `tools/export_gains_to_c.py` 转 C 头。
+
+**长流程**：写成 .m 文件后用 `run_matlab_file`，便于版本控制和重跑。
+
+### 10.3 8 大场景速查
+
+| 场景 | 关键函数 | 详细流程 |
+|---|---|---|
+| 系统辨识 | `iddata` / `tfest` / `ssest` / `procest` | `modes/matlab-embedded-toolkit.md` §2 |
+| 滤波器设计 | `butter` / `fir1` / `designfilt` / `tf2sos` | §3 |
+| FFT 分析 | `fft` / `pwelch` / `findpeaks` | §4 |
+| 控制器设计 | `lqr` / `dlqr` / `place` / `pidtune` | §5 |
+| 卡尔曼滤波 | `kalman` / `lqe` / `extendedKalmanFilter` | §6 |
+| 电机辨识 | Motor Control Blockset 或手工脚本 | §7 |
+| 日志可视化 | `readmatrix` / `plot` / `canDatabase` / `blfread` | §8 |
+| 定点化 | `fi()` / Fixed-Point Designer / 查表 | §9 |
+
+### 10.4 工具箱依赖与降级
+
+| Toolbox | 8 场景中哪些必需 | 降级 |
+|---|---|---|
+| Control System Toolbox | 4, 5 | python-control |
+| Signal Processing Toolbox / DSP System Toolbox | 2, 3 | scipy.signal |
+| System Identification Toolbox | 1 | python-control / scipy |
+| Motor Control Blockset | 6（高级） | 手工辨识脚本 |
+| Vehicle Network Toolbox | 7（CAN） | cantools + pandas |
+| Fixed-Point Designer | 8（高级） | 手算 Qm.n |
+
+**降级原则**：调用前用 `detect_matlab_toolboxes` 探测，缺失时切换到 Python 等价物，告知用户并继续。
+
+### 10.5 典型失败与处置
+
+| 失败 | failure_category | 处置 |
+|---|---|---|
+| MATLAB 未启动 | `environment-missing` | 启动 MATLAB，或降级 Python |
+| Toolbox 未装 | `environment-missing` | 装 toolbox / 用降级 |
+| 输入维度不匹配 | `ambiguous-context` | 回数据准备阶段 |
+| 仿真发散 / 模型不稳 | `target-response-abnormal` | 调参或换模型 |
+| `.h` 导出失败 | `artifact-missing` | 检查 `tools/export_gains_to_c.py` 输入 |
+
+### 10.6 与 export_gains_to_c.py 的联动
+
+MATLAB 算出来的矩阵 / 系数 → **本 skill 自带导出器**：
+
+```bash
+# MATLAB 端先：save('K.mat', 'K');
+python "C:\Users\A\.claude\skills\embedded-dev\tools\export_gains_to_c.py" \
+    --input K.mat --output app/control/lqr_gains.h \
+    --name K_BALANCE --type float --with-cmsis-template
+```
+
+支持 `.npy` / `.mat` / 命令行内联三种输入；输出标准 C 头文件（含 CMSIS-DSP 矩阵乘模板）。详见 `tools/export_gains_to_c.py --help`。
+
+---
+
 ## 9. 工具降级总表
 
 | 主工具 | 主用途 | 缺失/失败时降级到 |
@@ -121,5 +207,6 @@ gh repo clone owner/repo                               # clone 评估
 | agent-browser | 网页交互 | `/playwright-skill` / `WebFetch`（静态文本） |
 | gh CLI | GitHub | grok-search `site:github.com` |
 | Embedded Debugger | 硬件联调 | 串口日志 / 断言 / 手工烧录 |
+| **MATLAB MCP** | 数学计算 / 控制器 / 滤波 / FFT / 辨识 | python-control / scipy / numpy |
 
 降级**不**意味着工作流崩；只是体验下降。任何工具不可用时协议主流程仍然能跑。

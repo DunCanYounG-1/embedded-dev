@@ -19,6 +19,7 @@
 | 网表引脚提取 | `网表` mode | `modes/netlist-lookup.md` |
 | 故障快速诊断 | 离线参考 | `refs/troubleshooting.md` |
 | 硬件实时调试 | Embedded Debugger MCP | 仅硬件联调时可用 |
+| **数学计算 / 仿真 / 控制器设计 / 滤波器设计 / FFT / 系统辨识 / 定点化** | `mcp__matlab__*` 工具组 + `modes/matlab-embedded-toolkit.md` | 8 大场景 |
 
 ### 1.2 执行层（操作真实命令）
 
@@ -62,6 +63,7 @@
 | Python | **shared/project_detect.py** | 工程画像自动探测（构建系统/芯片/产物） | 见 `refs/contracts.md`；命令：`python ~/.claude/skills/shared/project_detect.py <ws>` |
 | Python | **shared/tool_config.py** | 嵌入式工具路径管理（OpenOCD / Keil UV4 / arm-gcc / J-Link 等） | 命令：`python ~/.claude/skills/shared/tool_config.py list` |
 | Skill 集 | **操作执行层兄弟 skill** | 真正执行编译/烧录/调试/串口/总线/分析；数量以 `hooks/verify-deps` 探测为准 | 见 §1.2 |
+| MCP | **MATLAB MCP**（`mcp__matlab__*`）| 数学计算 / 控制器设计 / 滤波器 / FFT / 系统辨识 / Kalman / 电机辨识 / 定点化 / 日志可视化（8 场景） | 缺 MATLAB → python-control / scipy / numpy；详见 `modes/matlab-embedded-toolkit.md` |
 
 ### grok-search 调用要点
 

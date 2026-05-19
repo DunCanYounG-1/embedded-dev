@@ -36,6 +36,63 @@ cp "$HOME/.claude/skills/embedded-dev/agents/embedded-"*.md .claude/agents/
 
 ---
 
+## 🔍 验装：如何确认 subagent 注册成功 ★v2.1
+
+**问题**：如果 `~/.claude/agents/` 没装好，`Task(subagent_type="embedded-arch")` 会**静默回退** `general-purpose`，看起来能跑但 Outcome/Ticket 规约失效。必须主动验证。
+
+### 验证步骤 1：文件存在
+
+```bash
+# Git Bash / WSL
+ls ~/.claude/agents/embedded-*.md
+# 应看到 7 个：arch / drv / alg / qa / matlab / vision / report
+```
+
+预期输出：
+```
+embedded-alg.md
+embedded-arch.md
+embedded-drv.md
+embedded-matlab.md
+embedded-qa.md
+embedded-report.md
+embedded-vision.md
+```
+
+少任何一个 → 重跑方式 1 的 cp 命令。
+
+### 验证步骤 2：Claude Code 识别
+
+在 Claude Code 主对话窗口里输入：
+
+```
+列出当前可用的 subagent
+```
+
+期望 Claude 列出 7 个 embedded-* 类型。**如果列表里没有 embedded-***，说明 Claude Code 启动时没扫到。重启 Claude Code 或检查路径。
+
+### 验证步骤 3：dry-run 调用
+
+```
+请用 Task(subagent_type="embedded-arch", description="identity check",
+       prompt="你是哪个 subagent？只回 owner_agent + model + 一句自我介绍。")
+```
+
+期望返回包含 `owner_agent: embedded-arch` + `model: opus` + "我是嵌入式比赛架构师..."。
+
+**失败特征（静默回退 general-purpose）**：
+- 返回里 owner_agent 不是 embedded-arch
+- 自我介绍泛泛而谈不提"嵌入式比赛"或"VoltAgent 风格"
+- Outcome 字段不全（缺 trace_id / artifact_paths 等）
+
+任一特征出现 → subagent 未注册，立即排查 `~/.claude/agents/` 路径。
+
+### 验证步骤 4：Outcome schema 一致
+
+派任意一个 subagent 跑最小任务，检查回传 Outcome 是否含 `refs/contracts.md §Command Outcome Schema` 必填字段（status / owner_agent / trace_id / summary / artifact_paths / next_action）。缺字段 = 装错或回退。
+
+---
+
 ## 7 个 Subagent 速查
 
 | Subagent | 用途 | 何时派 | 默认模型 |

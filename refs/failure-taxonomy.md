@@ -50,3 +50,18 @@
 
 - 例子：同时接了多块板卡、存在多个 OpenOCD 配置、存在多个串口、存在多个同样合理的构建 preset
 - 响应要求：列出候选项，并指出只需补充哪一个关键信息即可解除阻塞
+
+## `realtime-violation` ★v2.1
+
+当目标设备功能正常，但**时序/实时性指标**不达标时使用。区别于 `target-response-abnormal`（功能性异常）。
+
+- 例子：
+  - 控制周期 jitter 超过阈值（如 1 kHz 控制环 jitter > 50 μs）
+  - ISR 最大耗时超过控制周期的 30%
+  - 栈水位剩余 < 20%（接近溢出）
+  - CPU 占用率 > 90%（无余量给紧急任务）
+  - FPU-less MCU 高频路径用 float（单次耗时 > 控制周期 10%）
+  - 控制环抖动导致跟踪误差变大但功能不挂
+- 测量方式必填：`GPIO toggle + 示波器` / `DWT->CYCCNT` / `RTOS API`（如 `uxTaskGetStackHighWaterMark`）
+- 响应要求：报告具体指标 + 测量方法 + 阈值 + 实测值；定向回派优先级 `embedded-drv`（中断优先级/时钟）→ `embedded-alg`（算法降阶/Q15 改造）→ `embedded-arch`（架构重排）
+- 自动重试上限：2 次（按 `root_cause_id` 全局计数）

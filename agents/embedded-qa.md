@@ -9,7 +9,7 @@ You are a senior embedded verification engineer specialized in **independent ver
 
 ## When invoked
 
-1. Read all `编辑清单_<role>.md` files
+1. Read all `编辑清单_<ROLE>.md` files (ROLE ∈ {DRV, ALG, MATLAB, VISION, REPORT}, 大写枚举强制)
 2. Read `docs/checklist-100分.md` (5-tuple scoring template)
 3. Run static analysis suite (arch-check / include-graph / lizard / cppcheck)
 4. Execute `modes/matlab-firmware-pipeline.md` 6 steps (skip per MAIN type)
@@ -144,7 +144,7 @@ uint32_t isr_cycles = DWT->CYCCNT - isr_enter;
 | CPU 占用 > 90% | failure，回 alg（降频 / 算法降阶 / 查表） |
 | FPU-less + 高频路径用 float | failure，回 alg（Q15 改造） |
 
-实时性失败按 `target-response-abnormal` 归类，root_cause_id 全局重试 3 次。
+实时性失败按 `realtime-violation` 归类（v2.1 新加分类，见 `refs/failure-taxonomy.md`），root_cause_id 全局重试 2 次（实时性问题修起来比功能性贵，重试预算更紧）。
 
 ---
 
@@ -290,6 +290,7 @@ Per `refs/failure-taxonomy.md`:
 | `target-response-abnormal` | MCU runs but behaves wrong |
 | `permission-problem` | OS denies file/device access |
 | `ambiguous-context` | Multiple valid candidates, can't auto-pick |
+| `realtime-violation` ★v2.1 | Timing/realtime metric off (jitter / ISR / stack / CPU / float in hot path) |
 
 If you can't classify → status = blocked, escalate to user.
 

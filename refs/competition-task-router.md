@@ -18,11 +18,17 @@ Step 2：用 §2 表查"应该派哪些 Agent"
 Step 3：用 §3 表查"该跳过哪些 CP"
 Step 4：把题目评分点喂给 refs/competition-scoring-checklist-template.md，生成验收表
    ↓
-输出（写入 项目规划清单.md 顶部）：
+输出（写入 **docs/competition-routing.md**，由 [ARCH] 在 CP-0b 阶段产出）：
   - 题型: <控制 / 信号源 / 仪表 / 通信 / 系统集成 / 电源-模电>
   - 派 Agent: [DRV] [ALG] [MATLAB?] [VISION?] [QA] [REPORT?]
   - 跳过: CP-1.5 ? / Step 6 ?
-  - 验收表: 100 分逐项打钩
+  - 验收表入口: docs/checklist-100分.md
+
+> **位置约定**（v2.1 修订）：
+> - 路由产物（含 tag_weights） → `docs/competition-routing.md`
+> - 100 分验收表 → `docs/checklist-100分.md`
+> - 比赛状态机（competition_state YAML） → `项目规划清单.md` 顶部（fenced YAML）
+> 三者**各自有专属位置**，不要再写"放项目规划清单顶部"了 — 早期版本遗留，已修。
 ```
 
 完成 Step 1-4 才能进入比赛模式 v2 的 CP-1。

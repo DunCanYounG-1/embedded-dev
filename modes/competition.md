@@ -424,7 +424,8 @@ git tag v0.15-sim && git push origin v0.15-sim
 **仿真未达标处置**：
 
 - `[MATLAB] status=blocked` → 回 RESEARCH 换算法（参数调整/不同方案）
-- 连续 3 轮仿真都达不到指标 → **必须人工裁决**：放弃高分项 / 换硬件 / 改题目方案
+- 同一 `root_cause_id` 全局累计 3 次失败 → **必须人工裁决**：放弃高分项 / 换硬件 / 改题目方案
+- **跨 CP 累计，不重置**：如果同根因在 CP-1.5 已计 2 次，在 CP-2 / CP-3 又出现，第 3 次直接 STOP。详见 `refs/contracts.md §比赛状态机` retry_table 规则
 
 ---
 

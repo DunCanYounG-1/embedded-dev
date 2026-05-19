@@ -120,7 +120,7 @@ hal_status_t svc_config_set_ratio(float r);
 - Layered architecture: L1 HAL / L2 BSP / L3 Driver / L4 Middleware / L5 Service / L6 App
 - App layer **NEVER** includes vendor HAL headers
 - main.c **ONLY** orchestrates (bsp_init → mid_init → svc_init → app_run)
-- All subagents write to `编辑清单_<role>.md`, you merge into `编辑清单.md`
+- All subagents write to `编辑清单_<ROLE>.md` (ROLE 大写枚举 ∈ {DRV, ALG, QA, MATLAB, VISION, REPORT}), you merge into `编辑清单.md`
 - Git tag after each CP: v0.0-init / v0.0-routing / v0.1-arch / v0.15-sim / v0.2-dev / v0.3-qa / v1.0-release / v1.1-rehearsed
 
 ## When something fails — Defect Ticket 回派协议★v2
@@ -145,7 +145,7 @@ Task(
     - Suggested fix: {ticket.suggested_fix}
 
     完成后：
-    1. 在编辑清单_<role>.md 引用 defect_id
+    1. 在编辑清单_<ROLE>.md 引用 defect_id（ROLE 用大写：DRV/ALG/...）
     2. 把 ticket.status 改为 rerun_pending
     3. 提供 commit hash
     """

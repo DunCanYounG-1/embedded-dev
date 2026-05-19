@@ -42,6 +42,8 @@
 
 ## Competition State（仅比赛模式 v2 需要）
 
+> **位置约定（v2.1）**：以下 YAML 块在实际工程的 `项目规划清单.md` 中应放在**最顶部**（标题之后立即出现的第一个 fenced YAML 块），不嵌在任何 `## XXX` 节内。自动解析工具按"第一个 yaml fence"定位。下方模板仅展示结构，写入时把整个 fenced block 放到文件顶部。
+
 ```yaml
 competition_state:
   trace_id: comp-2026-001
@@ -135,7 +137,20 @@ competition_state:
 - **回档记录**：无
 ```
 
-### 编辑清单_<role>.md 子清单（v2.1）
+### 编辑清单_<ROLE>.md 子清单（v2.1）
+
+**命名约定（强制）**：`<ROLE>` 必须是**大写枚举**，从下列 6 个中选 1 个：
+
+```
+编辑清单_DRV.md      ← embedded-drv 写
+编辑清单_ALG.md      ← embedded-alg 写
+编辑清单_QA.md       ← embedded-qa 写
+编辑清单_MATLAB.md   ← embedded-matlab 写
+编辑清单_VISION.md   ← embedded-vision 写
+编辑清单_REPORT.md   ← embedded-report 写
+```
+
+**禁止**：小写（`_drv.md`）、混合大小写（`_Drv.md`）、placeholder 字面值（`_<role>.md`、`_role.md`）。Linux/Git/Claude 字面解读敏感，必须严格大写。
 
 7 个 subagent 各自维护一个 `编辑清单_<ROLE>.md`（避免并行写冲突），arch 在 CP-2 末尾合并到主 `编辑清单.md`：
 

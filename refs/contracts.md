@@ -63,7 +63,11 @@
 
 ## 比赛状态机（Competition State）★v2
 
-比赛模式 v2 的全局状态由"当前 CP + 状态机"显式表达，不允许 Agent 靠自然语言推进。`项目规划清单.md` 必须在顶部维护以下 YAML 块（由 `embedded-arch` 写入，所有 subagent 只读）：
+比赛模式 v2 的全局状态由"当前 CP + 状态机"显式表达，不允许 Agent 靠自然语言推进。
+
+**写入位置（强制）**：`项目规划清单.md` 的**第一个 fenced YAML 块**（即文件 `# 项目规划清单` 标题之后立即出现的 ```yaml ... ``` 块）。由 `embedded-arch` 写入，所有 subagent 只读。自动解析工具按"第一个 yaml fence"定位，不要嵌入 `## XXX` 节内。
+
+格式如下：
 
 ```yaml
 competition_state:
@@ -116,6 +120,7 @@ competition_state:
 2. 任何 Agent 看到 `state=blocked` 时必须**只读不写**，等待 arch 解除阻塞
 3. `passed_cps` 按时间顺序追加，不允许覆盖；回档时新增 `rollback` 字段（不删 entry）
 4. `retry_table` 按 `root_cause_id` 全局计数；同根因第 3 次 failure → STOP + 写 `研究发现.md`
+5. **跨 CP 窗口规则**★v2.1：`root_cause_id` 计数**跨 CP 累计，不重置**。即同一根因在 CP-1.5、CP-2、CP-3 反复出现时，计数共用一个 retry_table[root_cause_id] 槽位。例外：`failure_category=realtime-violation` 重试上限 2 次（其他类 3 次），见 `failure-taxonomy.md`。**禁止**通过改 root_cause_id 名字绕过全局计数
 
 ### Competition State 与 git tag 一一对应
 

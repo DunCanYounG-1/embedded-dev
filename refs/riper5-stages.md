@@ -327,6 +327,18 @@ NO COMPLETION CLAIMS WITHOUT FRESH EVIDENCE IN THIS MESSAGE
 - 可调用 `/simplify` skill 自动检查代码复用性、效率和质量问题
 - 默认以 Verifier 视角给出结论；若验证未跑通，明确标记为未完成而非"基本可用"
 
+**静态检查门（机械化执行，必跑）**：
+
+按 `refs/static-analysis-pipeline.md` 跑三件套并在证据包中附完整报告：
+
+| 工具 | 通过标准 | 失败处置 |
+|---|---|---|
+| **cppcheck** | `--enable=warning,style,performance,portability` 无 error；warning 逐条说明 | 真问题回 EXECUTE 修；误报加 `// cppcheck-suppress` |
+| **clang-tidy** | `bugprone-* / cert-* / clang-analyzer-*` 0 报告（设为 WarningsAsErrors） | 必修 |
+| **lizard** | CCN ≤ 10 / NLOC ≤ 50 / PARAM ≤ 3 / 嵌套 ≤ 2 | 超阈函数必须拆，无例外则标注未完成 |
+
+**禁止**：以"不影响功能"为由略过静态检查报告；以"误报太多"关掉整条规则（必须 per-line suppress）。
+
 ### 反自欺检查表（Rationalization Prevention）
 
 **审查过程中若出现以下念头，必须立即停下来验证：**

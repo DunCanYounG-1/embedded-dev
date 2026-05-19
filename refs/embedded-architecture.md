@@ -218,6 +218,29 @@ endif()
 7. **临界区**：用统一宏（`bsp_critical_enter()` / `bsp_critical_exit()`）封装，禁止裸 `__disable_irq()` 散落代码
 8. **没有动态分配**（默认）：静态池 / 栈 / 链接期分配；如必须 `malloc`，集中在 RTOS 启动后并明确文档
 
+### 5.X 反屎山扩展硬规则（2026-05 新增，对应 `scripts/arch-check.sh`）
+
+> 以下 6 条由静态扫描脚本 `scripts/arch-check.sh` 机械化执行。违反任一项 → REVIEW 阶段直接 FAIL，回 EXECUTE 修。
+
+9. **`app_run()` 必须挂调度器或状态机**：禁止在 `app_run()` 内直接展开业务流程（while 大循环 + 顺序条件分支 = 屎山预警）。允许形态：
+   - `osKernelStart()` / `scheduler_start()` / `vTaskStartScheduler()`
+   - 状态机注册表 `state_machine_register(&state_table, ...)`
+   - 事件循环 `event_loop_run(&dispatcher)`
+   - 主循环 + 显式 task slot 表（每个 task 是独立函数）
+
+10. **禁 header 内非 trivial `static inline` 实现**：`.h` 内 `static inline` 函数体**只能**是 1-3 行简单 getter / accessor / 位操作；超过 3 行**必须**移到 `.c`。**严禁**在 Port 接口 `.h`（如 `hal_uart.h`）内塞含寄存器操作的 inline — 违反 Port/Adapter 解耦核心
+
+11. **ISR / 弱回调函数体 ≤ 20 行（非空非注释）**：`*_IRQHandler` / `*_Handler` / `HAL_*_Callback` / `*_callback` / `*Cb` 命名的函数体必须最小化。业务逻辑必须发送到任务 / 事件队列 / 标志位由主循环处理
+
+12. **单文件量化阈值**：
+    - 单 `.c` 文件 ≤ **800 行**（含注释空行）— 超出 → 按职责拆分
+    - 单 `.h` 公共 API ≤ **20 个**函数声明 — 超出 → 拆模块
+    - 单函数圈复杂度 CCN ≤ **10**（lizard 检测）— 超出 → 拆或表驱动
+
+13. **禁 mega-header**：任何 `.h` 文件 `#include` 数 ≥ **10** 即视为违规（`project.h` / `all.h` / `globals.h` 等 catch-all 写法）。每个使用者必须**最小化** include。SDK 配置头如 `ti_msp_dl_config.h` / `stm32f4xx_conf.h` 例外（厂商生成）
+
+14. **应用层 `extern` 全局变量数 = 0**：`app/` / `application/` / `project/code/app/` 下严禁 `extern <type> <name>;` 形式的变量声明。跨模块共享状态必须走 getter/setter API。`extern` 函数声明（含 `(...)`）允许但建议改为头文件声明
+
 ---
 
 ## 6. `main.c` 硬约束（应用层入口）
@@ -247,16 +270,24 @@ int main(void) {
 
 ## 7. 依赖方向检查表（REVIEW 阶段必跑）
 
-| 检查项 | 通过标准 | 失败处置 |
-|---|---|---|
-| 应用层（`app_*`）`#include` 列表 | 只含 `hal_*.h` / `drv_*.h` / `mid_*.h` / `svc_*.h` / `<stdint.h>` 等标准 C | 出现 `stm32f4xx_hal.h` / `gd32f4xx.h` 等 → 强制下沉到 HAL/BSP 层 |
-| 驱动层（`drv_*`）`#include` 列表 | 只含 `hal_*.h` / `bsp_*.h` / 标准 C | 出现厂商头 → 移动到对应 HAL 端口实现 |
-| HAL 端口实现（`hal/ports/*/`）`#include` 列表 | 可以含厂商头 | — |
-| `main.c` 行数 | ≤ 50 行 | 超出 → 拆 |
-| 业务函数（`app_*`）长度 | ≤ 50 行（最佳 < 30） | 超出 → 拆 |
-| 函数参数个数 | ≤ 3 | 超出 → 收敛为 `cfg_t` 结构体 |
-| 跨层调用（如 `app_*` 调 `bsp_*` 或厂商 API） | 不存在 | 存在 → 走 HAL 端口 |
-| 动态分配 | 默认禁用 | 例外需文档说明 |
+**机械化执行**：在工程根目录跑 `bash <skill_root>/scripts/arch-check.sh`，exit 0 才允许 REVIEW 通过。脚本覆盖以下 7 项 + 本节其余手工核对项。
+
+| 检查项 | 通过标准 | 失败处置 | 自动化 |
+|---|---|---|---|
+| **ARCH-1** 应用层 `#include` 列表 | 只含 `hal_*.h` / `drv_*.h` / `mid_*.h` / `svc_*.h` / `<stdint.h>` 等标准 C | 出现 `stm32f4xx_hal.h` / `gd32f4xx.h` / `ti_msp_dl_config.h` 等 → 强制下沉到 HAL/BSP 层 | ✅ `arch-check.sh` |
+| **ARCH-2** `main()` 顶层调用数 | ≤ 6 | 超出 → 拆出 `app_xxx.c` | ✅ `arch-check.sh` + `pre-write-check.py` |
+| **ARCH-3** ISR / 弱回调函数体行数 | ≤ 20 行非空非注释 | 超出 → 业务移到任务 / 标志位 | ✅ `arch-check.sh` + `pre-write-check.py` |
+| **ARCH-4** 应用层 `extern` 变量数 | = 0 | 改 getter/setter API | ✅ `arch-check.sh` + `pre-write-check.py` |
+| **ARCH-5** 单 `.c` 文件行数 | ≤ 800 | 按职责拆分 | ✅ `arch-check.sh` |
+| **ARCH-6** 单 `.h` 公共 API 数 | ≤ 20 | 拆模块 | ✅ `arch-check.sh` |
+| **ARCH-7** mega-header 检测 | `#include` 数 ≤ 10 | 拆 / 最小化 include | ✅ `arch-check.sh` |
+| 驱动层 `#include` 列表 | 只含 `hal_*.h` / `bsp_*.h` / 标准 C | 厂商头 → 移到 HAL 端口实现 | 手工 |
+| HAL 端口实现 `#include` | 可以含厂商头 | — | 手工 |
+| 业务函数长度 | ≤ 50 行 / 嵌套 ≤ 2 / 参数 ≤ 3 / CCN ≤ 10 | 拆 | ✅ `lizard`（见 `refs/static-analysis-pipeline.md`） |
+| 跨层调用（app → bsp 或 vendor API） | 不存在 | 走 HAL 端口 | 手工（含 PreToolUse hook 部分覆盖） |
+| 动态分配 | 默认禁用 | 例外需文档说明 | 手工 |
+| Header 内非 trivial `static inline` | 函数体 ≤ 3 行 | 移到 `.c` | 手工 |
+| `app_run()` 必须挂调度器 / 状态机 | 含 `scheduler_start()` / `osKernelStart()` / `state_machine_register()` 之一 | 改为编排式 | 手工 |
 
 ---
 

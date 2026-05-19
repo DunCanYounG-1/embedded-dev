@@ -464,6 +464,6 @@ refs/competition-task-router.md（题型判定）
 - **比赛模式主流程**：`modes/competition.md`
 - **Agent prompt 模板**：`refs/competition-ai-max-workflow.md`
 - **题型 E 实战**：`refs/example-siemens-cimc-2025.md`
-- **题型 A/B/C 实战**：`refs/matlab-example-dds-signal-gen.md` / `thd-meter.md` / `modem-am.md`
-- **题型 D 实战（机电）**：`refs/lqr-example-segway.md` / `lqr-example-bicycle-cornell.md`
+- **题型 A/B/C 实战**：`refs/matlab-example-dds-signal-gen.md` / `refs/matlab-example-thd-meter.md` / `refs/matlab-example-modem-am.md`
+- **题型 D 实战（机电）**：`refs/lqr-example-segway.md` / `refs/lqr-example-bicycle-cornell.md`
 - **视觉题**：由独立 `auto-vison` skill 承担，不在本 skill 范围

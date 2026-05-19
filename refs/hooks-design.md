@@ -27,7 +27,9 @@
 |---|---|---|---|
 | `SessionStart` (matcher: startup\|clear\|compact) | `session-start.py` | Python | 注入协议引导（索引模式）：要求 Claude 首条响应前读 SKILL.md + 跑环境自检 + 检测四文件 |
 | `UserPromptSubmit` | `check-memory-files` | Bash | 检测中英双轨四文件存在性，存在则提醒 Claude 读取 |
-| `PreToolUse` (matcher: Write\|Edit\|Bash) | `inject-context` | Bash | 注入 plan / hw-resources / findings 关键段片段 |
+| `PreToolUse` (matcher: Write\|Edit\|MultiEdit) | `pre-write-check.py` | Python | 分层合规拦截（应用层 #include 厂商 HAL 等违规 → exit 2 阻断写入）|
+| `PreToolUse` (matcher: Write\|Edit\|MultiEdit) | `inject-context` | Bash | 注入 plan / hw-resources / findings 关键段片段（与 pre-write-check 同事件叠加）|
+| `PreToolUse` (matcher: Bash) | `inject-context` | Bash | Bash 工具调用前仅注入上下文，不做合规拦截 |
 | `PostToolUse` (matcher: Write\|Edit\|Bash) | `remind-update` | Bash | 提醒 Claude 改完后更新 edits.md / hw-resources.md / findings.md |
 
 ---

@@ -1028,7 +1028,7 @@ git checkout v0.3-qa -- main.c  # 或只回退某个文件
 
 ## 三人极简模式（Mini）★新
 
-针对 3 人队 / 时间紧 / 队员不熟 git/MCP 的场景，v2 极限模式（7 Agent + 6 阶段 + 多次 commit）确实过重。Mini 模式压缩到**最小可跑**。
+针对 3 人队 / 时间紧 / 队员不熟 git/MCP 的场景，v2 极限模式（6 Agent + 6 阶段 + 多次 commit）确实过重。Mini 模式压缩到**最小可跑**。
 
 ### 触发条件
 
@@ -1045,7 +1045,7 @@ git checkout v0.3-qa -- main.c  # 或只回退某个文件
 | `[HARD]` | [DRV] + 硬件焊接 | 硬件队员 |
 | `[SOFT]` | [ALG] + [QA] + [MATLAB] | 软件队员（主用 Claude）|
 
-注意：**Claude 仍然按角色派 Agent**，但人类参与时合并。即：Claude 内部派 7 Agent 输出，3 人按角色合并 review + 推进。
+注意：**Claude 仍然按角色派 Agent**，但人类参与时合并。即：Claude 内部派 6 Agent 输出，3 人按角色合并 review + 推进。
 
 ### 阶段压缩：6 → 4 个
 
@@ -1092,13 +1092,13 @@ mode: mini                            # 三人极简模式开启
 
 | 文件 | 用途 |
 |---|---|
-| `refs/competition-ai-max-workflow.md` | 完整 7 Agent prompt 模板（直接 copy-paste 派发） + 自动决策门 + 完整流程示例 |
+| `refs/competition-ai-max-workflow.md` | 完整 6 Agent prompt 模板（直接 copy-paste 派发） + 自动决策门 + 完整流程示例 |
 | `refs/competition-index.md` | 历年电赛赛题映射 → 快速定位 E1-E7 场景 |
 | `modes/matlab-firmware-pipeline.md` | 一键流水线（算→.h→编译→烧→监→对比），CP-3 [QA] 强制调用 |
 | `modes/matlab-toolkit-competition.md` | 7 个竞赛专项场景（E1-E7） |
 | `modes/matlab-embedded-toolkit.md` | 10 场景算法主线（基础 1-8 + Simulink 9 + MIL/SIL/PIL 10） |
 | `refs/contracts.md` | Command Outcome Schema 标准格式 |
-| `refs/failure-taxonomy.md` | 7 类失败分类 + 自动路由参考 |
+| `refs/failure-taxonomy.md` | 8 类失败分类 + 自动路由参考 |
 
 ### 典型派发流程（电赛 4 天压缩到 1.5-2 天）
 

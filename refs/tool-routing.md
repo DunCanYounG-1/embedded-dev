@@ -44,7 +44,7 @@
 | 需求 | 文件 | 用途 |
 |---|---|---|
 | Project Profile / Skill Handoff / Command Outcome | `refs/contracts.md` | 字段定义 + 调用约定 |
-| 失败分类（7 类标准） | `refs/failure-taxonomy.md` | `environment-missing` / `project-config-error` 等 |
+| 失败分类（8 类标准） | `refs/failure-taxonomy.md` | `environment-missing` / `project-config-error` 等 |
 | 跨平台路径规则 | `refs/platform-compatibility.md` | Linux/macOS/Windows 串口、路径、权限差异 |
 
 ---
@@ -67,13 +67,9 @@
 
 ### grok-search 调用要点
 
-- 本地 Python CLI 脚本，必须通过 Bash 调用：
-  ```bash
-  python ~/.claude/skills/grok-search/scripts/grok_search.py --query "搜索词"
-  ```
 - **若 grok-search 已安装则优先用它**，未安装直接用内置 WebSearch / WebFetch（不强制先试一次再降级）
 - 返回 JSON：`ok` / `content`（归纳答案）/ `sources`（URL 列表）/ `raw`（解析失败时兜底）
-- 详细用法、降级矩阵见 `refs/mcp-tools.md` 的 Grok-Search 章节
+- 命令模板、降级矩阵、错误恢复见 `refs/mcp-tools.md` Grok-Search 章节（单一权威，本文不重复）
 
 ---
 

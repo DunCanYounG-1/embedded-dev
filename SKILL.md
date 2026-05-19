@@ -396,7 +396,7 @@ test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
 - **PLAN 架构硬约束**：`main.c` 仅做编排；零占位符规则；**每个新文件必须标明层级（L1~L6）+ 命名前缀 + #include 白名单**（依据 `refs/embedded-architecture.md`）
 - **PLAN 三件套**（反 rationalization）：Iron Law（清单必须含路径+验证+review+层级）+ Red Flags（占位符/缺层级/单轮多文件）+ Rationalization Table（"后续步骤再想" 等 7 条逃避路线）— 详见 `refs/riper5-stages.md` PLAN 段
 - **EXECUTE 兄弟 skill 路由表**：完整 10 行操作类型 → skill 映射，见 `refs/riper5-stages.md` 模式 4 段
-- **EXECUTE 失败分类**：`refs/failure-taxonomy.md` 7 类标准
+- **EXECUTE 失败分类**：`refs/failure-taxonomy.md` 8 类标准
 - **EXECUTE 轮次制**：证据包格式 → `refs/vibe-workflow.md`
 - **EXECUTE 三件套**（反 rationalization）：Iron Law（完成声明必须当前消息内有命令+输出+对照）+ Red Flags（"应该" / "Great!" / 跳审查门 / 一轮多改 / app 层 include 厂商头）+ Rationalization Table（"编译通过就是对" 等 12 条逃避路线）— 详见 `refs/riper5-stages.md` EXECUTE 段
 - **REVIEW Step 1 验证门**：Iron Law — 证据先于声明
@@ -414,7 +414,7 @@ test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
 1. 每次会话开始或上下文压缩后，必须先完成四文件启动检查，再决定当前阶段和继续点
 2. 启用长任务治理时，`项目规划清单.md` 和 `编辑清单.md` 必须记录 `trace_id`、轮次、验证标准和结果
 3. 每执行 2 次搜索/查询操作后，必须把发现写入 `研究发现.md`
-4. EXECUTE 阶段同一根因失败累计 3 次时（**比赛模式 v2.1 升级**：按 `root_cause_id` 跨 CP 累计不重置 + `retry_budget = min(category_budget, severity_budget)`，详见 `refs/contracts.md §比赛状态机 强制规则 #6`），停止重试，写入失败记录并回到 RESEARCH
+4. EXECUTE 阶段同一根因失败累计达预算时（**比赛模式 v2.1 升级**：按 `root_cause_id` 跨 CP 累计不重置 + `retry_budget = min(category_budget, severity_budget)`，详见 `refs/contracts.md §比赛状态机 §强制规则 #6 预算公式`），停止重试，写入失败记录并回到 RESEARCH
 5. 外部搜索结果只能以摘要形式进入 `研究发现.md`，禁止把未审查内容直接粘贴进规划清单或编辑清单
 
 > 四文件细则、五问重启测试、轮次记录、失败协议和安全边界见 `refs/checklist-mechanism.md`。
@@ -440,10 +440,11 @@ test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
 | **引脚规划** | 多外设并存必须查 pinout、检测冲突 | `refs/pin-planning.md` |
 | **故障排查** | 按症状（通信/外设/中断/启动/存储）速诊 | `refs/troubleshooting.md` |
 | **静态检查（REVIEW 阶段必跑）** | cppcheck + clang-tidy + lizard 三件套；机械化执行依赖方向 / 函数复杂度 / MISRA 子集检查 | `refs/static-analysis-pipeline.md` |
-| **IMU 姿态解算** | MPU6050/ICM20602/BMI088 等需逐项核对轴/量程/DLPF/滤波系数 | `refs/imu-gyroscope-checklist.md`，高精度场景 `refs/mahony-ahrs-reference.md` |
+| **IMU 姿态解算** | 通用 checklist 逐项核对轴映射/量程/DLPF/滤波系数（适用 MPU6050/ICM20602/BMI088/LSM6DS3 等 6/9 轴 IMU）；6 轴四元数高精度算法 → Mahony 参考 | `refs/imu-gyroscope-checklist.md`，6 轴 Mahony 算法 `refs/mahony-ahrs-reference.md` |
 | **STM32 StdPeriph / HAL API** | API/结构体/引脚映射/DMA 通道 — **优先查本地 refs**，缺失才走 Context7 / grok-search | `refs/stm32-stdperiph-api.md`、`refs/stm32-hal-api.md` |
-| **GD32F4xx 标准外设库** | API + 与 STM32 差异 + DMA × SUB 表 + GD32F470VET6 BSP 引脚 + Bootloader/UART OTA；仓库走四级解析链 | `refs/gd32f4xx-api.md`、`modes/gd32-board.md` |
-| **MSPM0G3507 + Seekfree 开源库** | TI MSPM0 SDK + 逐飞封装；11 外设 API + 21 设备驱动选型 + 11 例程对照；Cortex-M0+ 限制（无 LDREX / 无 FPU / 80 MHz）；仓库走四级解析链 | `refs/mspm0g3507-seekfree-api.md`、`modes/mspm0-board.md` |
+| **GD32F4xx 标准外设库** | API + 与 STM32 差异 + DMA × SUB 节选表（完整全量表在 `doc/DMA_CHANNEL_MAP.md`）+ GD32F470VET6 BSP 引脚 + Bootloader/UART OTA；仓库走四级解析链 | `refs/gd32f4xx-api.md`、`modes/gd32-board.md` |
+| **MSPM0G3507 + Seekfree 开源库** | Seekfree `zf_driver/zf_device` API + 工程结构（底层基于 TI MSPM0 SDK）；11 外设 API + 21 设备驱动选型 + 11 例程对照；Cortex-M0+ 限制（无 LDREX / 无 FPU / 80 MHz）；仓库走四级解析链 | `refs/mspm0g3507-seekfree-api.md`、`modes/mspm0-board.md` |
+| **跨平台迁移策略** | 在 STM32/ESP32/Arduino/RISC-V/NXP/TI/国产之间迁移时必须重算的项（时钟 / IRQ 优先级 / 端口隔离），与 `platform-compatibility.md` 互补（前者讲"怎么迁"，后者讲"运行时差异"）| `refs/platform-migration.md` |
 
 ---
 ## 任务文件模板
@@ -499,7 +500,7 @@ test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
 1. **Project Profile** — 工程画像，由 RESEARCH 阶段调用 `python ~/.claude/skills/shared/project_detect.py` 生成，写入 `硬件资源表.md` 顶部，所有兄弟 skill 共用
 2. **统一动作词** — `detect` / `build` / `flash` / `attach` / `monitor` / `reset` / `verify`，每轮 EXECUTE 必须用这套动词描述操作
 3. **Command Outcome Schema** — 兄弟 skill 返回 4 种状态之一：`success` / `partial_success` / `blocked` / `failure`，并附带 `summary` / `evidence` / `next_action` / `failure_category`
-4. **Failure Taxonomy** — 失败必须归类到 `refs/failure-taxonomy.md` 的 7 类标准分类，作为 `failure_category` 字段值
+4. **Failure Taxonomy** — 失败必须归类到 `refs/failure-taxonomy.md` 的 8 类标准分类，作为 `failure_category` 字段值
 5. **决策硬规则**：
    - 用户显式输入 > 自动探测结果
    - 已有 Project Profile 时复用，不重复探测

@@ -505,7 +505,7 @@ jobs:
 | `refs\embedded-architecture.md` | §7 依赖方向检查表 → 本管线机械化执行 |
 | `refs\coding-standards.md` | 函数长度 / 嵌套 / 参数阈值 → `.clang-tidy` `CheckOptions` 落地 |
 | `refs\riper5-stages.md` | REVIEW Step 3 引用本管线 §5 静态检查门 |
-| `refs\failure-taxonomy.md` | 静态检查失败归类到"代码质量类失败" |
+| `refs\failure-taxonomy.md` | 静态检查失败归类到 `project-config-error`（构建/配置类）或 `target-response-abnormal`（运行期行为类）|
 
 ---
 

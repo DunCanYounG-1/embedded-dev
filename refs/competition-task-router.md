@@ -322,7 +322,7 @@ tag_weights:
 
 | 赛事-题号 | mode |
 |---|---|
-| 2025 CIMC 西门子杯初赛 | `industrial-data-acquisition.md` + `refs/example-siemens-cimc-2025.md` |
+| 2025 CIMC 西门子杯初赛 | `modes/industrial-data-acquisition.md` + `refs/example-siemens-cimc-2025.md` |
 | 类似工业 DAQ 题 | 同上 |
 
 ### 5.6 电源-模电（题型 F）

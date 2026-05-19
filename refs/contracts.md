@@ -178,7 +178,7 @@ CP-5  passed → v1.1-rehearsed
   found_in_cp: CP-3                   # 在哪个 CP 发现
   blocking_cp: CP-3                   # 阻塞哪个 CP 通过（一般等于 found_in_cp）
 
-  category: target-response-abnormal  # 沿用 failure-taxonomy.md 7 类
+  category: target-response-abnormal  # 沿用 failure-taxonomy.md 8 类
   root_cause_id: RC-ADC-DRIFT-001     # 与 retry_table 联动，同根因复用
 
   title: "ADC 多通道读数漂移 8 LSB"

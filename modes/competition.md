@@ -1,19 +1,58 @@
-# 比赛模式 (Embedded Competition Mode)
+# 比赛模式 (Embedded Competition Mode) v2
 
-> 由主 SKILL 调用，触发词：**启用比赛模式**
-> 适用场景：全国大学生电子设计竞赛、蓝桥杯嵌入式、省级/校级嵌入式竞赛
+> 由主 SKILL 调用，触发词：**启用比赛模式** / `自动完赛` / `极限并行` / `多 Agent 派发`
+> 适用场景：全国大学生电子设计竞赛、全国大学生智能汽车竞赛（NXP 杯）、蓝桥杯嵌入式、省级/校级嵌入式竞赛
 > 主协议（RIPER-5）的基础规则全部有效，本文件仅定义比赛模式的**增量规则**
+>
+> **v2 升级亮点**（与上一版对比）：
+> - 团队从 4 角色升级为 **7 角色**（新增 `[MATLAB]` / `[VISION]` / `[REPORT]`）
+> - 并行从 2-Agent 升级为 **N-Agent**（4-6 个 Agent 同时跑）
+> - 加入 **CP-1.5 算法仿真验证检查点** 和 **CP-5 答辩演练检查点**
+> - 内置 `modes/matlab-firmware-pipeline.md` 一键流水线，强制 MIL/SIL/PIL 三层验证
+> - **自动决策门**（按 `refs/contracts.md` 的 Command Outcome Schema 自动路由）
+> - 完整 Agent prompt 模板与流程示例：见 `refs/competition-ai-max-workflow.md`
 
 ---
 
-## 团队角色
+## Agent 派发入口（两选一）
 
-| 代号 | 角色 | 职责边界 |
-|------|------|---------|
-| `[ARCH]` | 系统架构师 | 需求拆解、硬件资源规划、接口契约、main.c、最终集成、版本管理 |
-| `[DRV]` | 底层驱动工程师 | 全部外设初始化与驱动层（GPIO/TIM/ADC/UART/SPI/I2C/DMA/PWM） |
-| `[ALG]` | 算法控制工程师 | 控制算法、信号处理、状态机、业务逻辑 |
-| `[QA]` | 嵌入式验证工程师 | 嵌入式专项静态审查、时序核算、硬件资源冲突排查 |
+**优先用方式 A — 独立 subagent**（如果 `~/.claude/agents/embedded-*.md` 已装，本仓库默认已装）：
+
+```python
+Task(subagent_type="embedded-arch", description="CP-0b 路由", prompt="<具体任务>")
+Task(subagent_type="embedded-drv",  description="...", prompt="...")
+Task(subagent_type="embedded-alg",  description="...", prompt="...")
+Task(subagent_type="embedded-qa",   description="...", prompt="...")
+Task(subagent_type="embedded-matlab", description="...", prompt="...")
+Task(subagent_type="embedded-vision", description="...", prompt="...")  # 仅 VISION TAG
+Task(subagent_type="embedded-report", description="...", prompt="...")
+```
+
+优势：独立 context = 主线压力小；prompt 已封装；可贡献回社区。**安装与速查**：`agents/README.md`。
+
+**方式 B — 内嵌 prompt 模板**（subagent 未装时回退）：用 `subagent_type=general-purpose` + 把 `refs/competition-ai-max-workflow.md §2.1-2.7` 模板复制进 prompt。本文档下面的 [DRV]/[ALG]/[REPORT] inline prompt 即为 §2.1-2.7 的镜像。
+
+> 一旦用方式 A，本文档下面的 inline prompt 仅作**口径参考**，不必照搬。
+
+---
+
+## 团队角色（v2 — 7 角色池，按题目 MAIN + TAGS 动态选）★v2 升级
+
+不再固定 7 角色全派。改成**角色池**：`[ARCH] [DRV] [ALG] [QA] [REPORT]` 5 个必选，`[MATLAB] [VISION]` 2 个按 `refs/competition-task-router.md` §2.1 表的"必选/可选/禁用"标签动态加入。
+
+| 代号 | 角色 | 角色池标签 | 职责边界 |
+|------|------|---------|---------|
+| `[ARCH]` | 系统架构师（主线）| **必选**（任何题）| 第 0 步路由 / 三表 + 接口契约 / 决策门 / 集成 |
+| `[DRV]` | 底层驱动 | **必选** | GPIO/UART/SPI/I2C/ADC/DMA/PWM/RTC 全部外设 |
+| `[ALG]` | 应用层算法 | **必选** | 调 `.h` / 状态机 / CLI / 编解码 / 业务逻辑 |
+| `[QA]` | 嵌入式验证 | **必选** | 静态审查 / MIL/SIL/PIL / 一键流水线 / 5 元组验收 |
+| `[REPORT]` | 报告答辩 | **必选** | 5 元组验收 + 答辩 why-evidence + LaTeX |
+| `[MATLAB]` | 算法仿真 | **看 MAIN**：SIGNAL/METER/MODEM/CONTROL/POWER 必选 / SYSTEM 看 TAGS / X 默认必选 | mcp__matlab__* + 导出 `.h` |
+| `[VISION]` | 视觉处理 | **看 TAGS**：含 `VISION` 必选，否则禁用 | 标定 + 二值化 + 边缘 + 透视 + 中线 |
+
+**Agent 数量**：4-7 个，由 `refs/competition-task-router.md` §2.4 算出。完整 prompt 模板：`refs/competition-ai-max-workflow.md` §2。
+
+**禁止**：不查 task-router 就拍脑袋全派 7 个（[VISION] 在没有摄像头的题里空转浪费）。
 
 ---
 
@@ -51,44 +90,147 @@
 说明：引脚/DMA/中断优先级三张表已确认无冲突，接口契约 v1.0 冻结
 ```
 
-### 提交检查点总览
+### 提交检查点总览（v2）
 
 | 检查点 | 触发时机 | 执行角色 | 标签 |
 |--------|---------|---------|------|
-| CP-0 | 仓库初始化后 | [ARCH] | `v0.0-init` |
-| CP-1 | 阶段一完成后 | [ARCH] | `v0.1-arch` |
-| CP-2 | 阶段二两个 Agent 均完成后 | [ARCH] | `v0.2-dev` |
-| CP-3 | 阶段三 QA PASS 后 | [ARCH] | `v0.3-qa` |
+| CP-0a | 工程目录 + git init | [ARCH] | `v0.0-init` |
+| CP-0b | 题型路由 + Agent 派发表 | [ARCH] | `v0.0-routing` |
+| CP-1 | 阶段一硬件资源规划完成后 | [ARCH] | `v0.1-arch` |
+| **CP-1.5** ★新 | 阶段一半 — `[MATLAB]` / `[VISION]` 仿真达标后 | [ARCH] | `v0.15-sim` |
+| CP-2 | 阶段二 N-Agent 并行开发均完成后 | [ARCH] | `v0.2-dev` |
+| CP-3 | 阶段三 QA PASS（含 MIL/SIL/PIL）后 | [ARCH] | `v0.3-qa` |
 | CP-4 | 阶段四集成完成后 | [ARCH] | `v1.0-release` |
+| **CP-5** ★新 | 阶段五答辩演练完成后 | [REPORT] | `v1.1-rehearsed` |
 
-> **修复迭代提交**：QA FAIL → 修复 → 再次 PASS 期间，每轮修复完成后追加提交，标签为 `v0.2-fix1`、`v0.2-fix2` 依此类推，不覆盖已有标签
+> **修复迭代提交**：任一阶段 FAIL → 修复 → 再次 PASS 期间，每轮修复完成后追加提交，标签为 `v0.2-fix1`、`v0.2-fix2` 依此类推，不覆盖已有标签
 
 ---
 
 ## 执行流程
 
-### ▶ 前置：[ARCH] 仓库初始化（进入任何阶段前必须完成）
+### ▶ CP-0a：[ARCH] 建临时赛题目录 + git init（**最先做**）★v2 修订
+
+**为什么 git init 在路由之前**：路由产物（题型识别 / Agent 派发表 / 验收表）本身就是有价值的 artifacts，必须从一开始就纳入 Git 版本控制，否则中途换思路会丢失初始决策。
 
 ```bash
-# 1. 在项目根目录初始化 git
+# 1. 创建工程目录
+mkdir <competition-name>-2026 && cd <competition-name>-2026
+
+# 2. git init + .gitignore（Keil/CubeIDE 模板见后文）
 git init
-
-# 2. 创建 .gitignore（Keil/STM32CubeIDE 专用）
-# 内容见下方模板
-
-# 3. 在 GitHub 创建同名仓库（空仓库，不初始化 README）
-#    然后关联远端：
-git remote add origin https://github.com/<用户名>/<项目名>.git
-
-# 4. 初始提交
+echo "Listings/" > .gitignore
+echo "Objects/" >> .gitignore
+echo "*.uvguix.*" >> .gitignore
 git add .gitignore
-git commit -m "[ARCH] 仓库初始化"
-git push -u origin main
+git commit -m "[ARCH] CP-0a 工程目录初始化"
 git tag v0.0-init
-git push origin v0.0-init
+
+# 3. 创建 docs/ 目录存路由产物
+mkdir docs
 ```
 
-**.gitignore 模板（Keil MDK）**：
+---
+
+### ▶ CP-0b：[ARCH] 读题与题型路由（git init 之后立即做）★v2 修订
+
+**铁律**：CP-0a 之后**立刻**按 `refs/competition-task-router.md` 标签化路由。**禁止直接进 CP-1**。
+
+```
+[ARCH] CP-0b 执行：
+  1. 完整读题（PDF / 命题书 / 评分细则）
+  2. 套 task-router §1.5 关键词反例表（零基础友好）
+  3. 套 §1.1 落 MAIN，§1.2 勾 TAGS
+  4. 套 §2 → 派 4-7 个 Agent（看 MAIN + TAGS 角色池）
+  5. 套 §3 → CP-1.5 / 流水线 Step 是否跳过？
+  6. 套 refs/competition-scoring-checklist-template.md → 生成 5 元组验收表
+  7. 全部写到 docs/competition-routing.md
+  8. git commit + tag v0.0-routing
+```
+
+**禁止**：第 0 步用直觉判题型。比如把"含摄像头的控制题"判成纯 CONTROL（漏 VISION 标签），或"系统集成题"派 [MATLAB] Agent 空转。
+
+**docs/competition-routing.md 模板**（写入 docs/，含 v2.1 加权 TAG）：
+
+```yaml
+trace_id: <competition-name>-001
+读题时间: 2026-08-01 09:00
+题目: <赛事名> <年份> <题号> <题目名>
+
+# 路由产物（来自 refs/competition-task-router.md 第 0 步）
+MAIN: CONTROL                         # 7 选 1（SIGNAL/METER/MODEM/CONTROL/SYSTEM/POWER/X）
+TAGS: [VISION, MOTOR, OLED, IMU]      # 0-N 个，来自 §1.2 / §1.5
+
+# v2.1 分值加权 TAG（来自 §1.7，必填）
+tag_weights:
+  CONTROL_LOOP:
+    total_score: 35
+    percentage: 35%
+    score_sources:
+      - "《评分细则》§1.2 完成时间 ≤ 30s（20 分）"
+      - "《评分细则》§1.3 超调 ≤ 10%（15 分）"
+    triggers_agents: [MATLAB, ALG]
+  VISION:
+    total_score: 25
+    percentage: 25%
+    triggers_agents: [VISION, ALG]
+  MOTOR:
+    total_score: 10
+    percentage: 10%
+    triggers_agents: [DRV, MATLAB]
+  OLED_HMI:
+    total_score: 5
+    percentage: 5%
+    triggers_agents: [DRV, ALG]
+  POWER_STABILITY:    # 隐性扣分项
+    total_score: -10
+    percentage: 10%
+    note: "低分高风险，单独验收"
+    triggers_agents: [DRV]
+
+评分单项最高: 33 分（来自《评分细则》"数据采集与参数存储"）
+路由置信度: high                       # high / low（low 需人工确认）
+派 Agent:                              # §2.4 + §1.7 加权后
+  - ARCH（必选）
+  - DRV（必选；负权 POWER_STABILITY 强制）
+  - ALG（必选）
+  - QA（必选）
+  - REPORT（必选）
+  - MATLAB（CONTROL_LOOP 35% → 必选）
+  - VISION（VISION 25% → 必选）
+  合计: 7 个
+
+excluded_agents:
+  - []                                 # 本题无排除
+
+fallback_plan:                         # v2.1 必填
+  if_MATLAB_unavailable: "scipy.signal + python-control 跑等价仿真"
+  if_VISION_FPS_unmet: "降分辨率 188×120 + 跳帧 1:2"
+  if_PIL_diverge: "Q15 缩放 + 二次校准"
+
+跳过阶段:                              # 来自 §3
+  - 无（CONTROL 题强制 SIL/PIL）
+
+CP3_verify_budget:                     # v2.1 验收时间按权重切
+  CONTROL_LOOP: 35%                    # 不少于 35% 验收时间
+  VISION: 25%
+  MOTOR: 10%
+  POWER_STABILITY: 10%                 # 红线项独立
+  OLED_HMI: 5%
+  其他抽查: 15%
+
+验收表入口: docs/checklist-100分.md   # 由 checklist-template §5.2 + §5.3 生成
+预期分数: ≥ 85 / 100
+
+第 0 步耗时: 8 分钟
+```
+
+完成 8 步 + commit + tag 后才能进入 CP-1。
+
+---
+
+### ▶ .gitignore 模板（CP-0a 用）★保留
+
 ```gitignore
 # Keil 编译产物
 *.o
@@ -117,11 +259,17 @@ Release/
 Thumbs.db
 ```
 
-初始化完成后宣告进入阶段一。
+**关联 GitHub 远端**（可选，CP-0a 后做）：
+
+```bash
+git remote add origin https://github.com/<队员>/<项目>.git
+git push -u origin main
+git push origin v0.0-init v0.0-routing
+```
 
 ---
 
-### ▶ 阶段一：[ARCH] 硬件资源规划
+### ▶ CP-1 [ARCH] 硬件资源规划
 
 **立即执行，输出以下三张表，确认无冲突后才能进入阶段二。**
 
@@ -203,11 +351,98 @@ git tag v0.1-arch && git push origin v0.1-arch
 
 ---
 
-### ▶ 阶段二：[DRV] + [ALG] 并行开发
+### ▶ 阶段一半（CP-1.5）：[MATLAB] / [VISION] 仿真验证 ★新
 
-**使用 Agent 工具同时派出两个 Agent，各自独立工作。**
+**目标**：在阶段二开始写嵌入式代码**之前**，先让 `[MATLAB]`（必派）和 `[VISION]`（智能车视觉组才派）跑通算法仿真，给出量化指标证据。仿真不通过 → 阶段二禁止开工（避免基于错误算法写代码）。
 
-> **Agent 派发方式**：在 Claude Code 中，使用一条消息同时发出两个 Agent 工具调用（parallel tool calls）。每个 Agent 调用传入下方对应的完整 prompt。两个 Agent 会在独立的上下文中并行执行，各自输出结果后由 [ARCH] 汇总。如果项目较小不适合并行，可以串行执行（先 DRV 再 ALG）。
+**为什么加这一步**：原版直接进阶段二并行开发 `[DRV]+[ALG]`，但 `[ALG]` 依赖的算法参数（K 矩阵 / 滤波系数 / LUT）必须先算出来。把仿真作为独立检查点，能让 `[ALG]` 进阶段二时拿到现成的 `.h` 文件，直接 `#include` 即可。
+
+**派发方式**：[ARCH] 同一条消息发出 1-2 个 Agent（按题型）。
+
+#### CP-1.5 - Agent: [MATLAB]（所有题型必派）
+
+完整 prompt 模板见 `refs/competition-ai-max-workflow.md §2.2`。摘要：
+
+```
+你是 [MATLAB] 算法仿真工程师。基于：
+1. 题目量化指标（精度 / 频响 / 失真度 / 稳定性）
+2. 硬件资源表（采样率 / FPU 能力 / Flash 余量）
+3. 接口契约（你的产出 .h 文件要被 [ALG] 直接 include）
+
+执行：
+1. mcp__matlab__detect_matlab_toolboxes 检测可用 toolbox
+2. 选 modes/matlab-toolkit-competition.md 的 E1-E7 场景 或 主线 1-10 场景
+3. mcp__matlab__run_matlab_file 跑设计脚本
+4. 输出关键指标证据（必须量化，不许"应该可行"）
+5. python tools/export_gains_to_c.py 导出 .h 到 app/dsp/ 或 app/control/
+
+强制约束：
+- 仿真未达指标 → status=blocked，禁止进入阶段二
+- 编辑清单写 编辑清单_MATLAB.md
+- Command Outcome 格式（refs/contracts.md）
+```
+
+#### CP-1.5 - Agent: [VISION]（仅智能车视觉组）
+
+完整 prompt 见 `refs/competition-ai-max-workflow.md §2.5`。摘要：
+
+```
+你是 [VISION] 视觉工程师。
+1. 摄像头标定 → cam_params.mat
+2. 离线测试 ≥ 10 张图（直道/弯道/十字/环岛/强光/弱光）
+3. 输出 perspective.h + track_detect.c/.h
+4. 性能基准：FPS + 丢线率 ≤ 5%
+
+强制约束：
+- 必须用真实图测试（不允许凭空推测）
+- 编辑清单写 编辑清单_VISION.md
+```
+
+#### ✦ CP-1.5 提交检查点
+
+[MATLAB]（+ [VISION]）输出 `status=success` 且关键指标达标 → 提交：
+
+```bash
+# 合并 编辑清单_MATLAB.md / 编辑清单_VISION.md 到主编辑清单
+# 删除临时文件
+git add app/dsp/*.h app/vision/*.h scripts/*.m 编辑清单.md 算法报告.md
+git commit -m "[MATLAB][VISION] CP-1.5 算法仿真验证通过
+
+变更文件：
+- 新增: scripts/<算法>_design.m
+- 新增: app/dsp/*.h, app/vision/*.h（[MATLAB]/[VISION] 产物）
+- 修改: 编辑清单.md
+
+关键指标：
+- THD = -58 dB （要求 -50 dB） ✓
+- 测量精度 0.7%（要求 ± 1%） ✓
+- [VISION] 丢线率 3.2%（要求 ≤ 5%） ✓"
+git push
+git tag v0.15-sim && git push origin v0.15-sim
+```
+
+**仿真未达标处置**：
+
+- `[MATLAB] status=blocked` → 回 RESEARCH 换算法（参数调整/不同方案）
+- 连续 3 轮仿真都达不到指标 → **必须人工裁决**：放弃高分项 / 换硬件 / 改题目方案
+
+---
+
+### ▶ 阶段二：[DRV] + [ALG] (+ [VISION] + [REPORT]) N-Agent 并行开发
+
+**使用 Agent 工具同时派出 2-4 个 Agent，各自独立工作。**
+
+> **Agent 派发方式**（v2 升级）：在 Claude Code 中，使用一条消息同时发出 N 个 Agent 工具调用（parallel tool calls）。N 由题型决定：
+> - 电赛信号 / 仪表 / 控制类：派 2 个（DRV + ALG）+ 可选 REPORT（写报告骨架）
+> - 智能车视觉组：派 3 个（DRV + ALG + VISION 继续完善上板代码）+ 可选 REPORT
+> - 智能车电磁直立组：派 2 个（DRV + ALG）+ 可选 REPORT
+> - 复杂综合题：3-4 个 Agent 同时跑
+>
+> 各 Agent 写自己的 `编辑清单_<ROLE>.md`，[ARCH] 收齐后合并到 `编辑清单.md`。
+>
+> 完整 Agent prompt 模板：**`refs/competition-ai-max-workflow.md` §2**
+>
+> **依赖关系**：[ALG] 进阶段二时 **必须**已经有 CP-1.5 产出的 `.h` 文件（K 矩阵 / 滤波系数 / LUT）。CP-1.5 跳过 / 失败 → 阶段二禁止开工。
 
 ---
 
@@ -394,7 +629,39 @@ git tag v0.2-dev && git push origin v0.2-dev
 
 ---
 
-### ▶ 阶段三：[QA] 嵌入式专项验证
+### ▶ 阶段三：[QA] 嵌入式专项验证 + 一键流水线 + MIL/SIL/PIL 三层验证
+
+v2 升级：[QA] 不仅做静态检查，还**主动触发** `modes/matlab-firmware-pipeline.md` 完整跑一遍 6 步流水线 + MIL/SIL/PIL 三层验证。
+
+#### 3.0 强制执行：一键流水线
+
+```text
+[QA] 跑 modes/matlab-firmware-pipeline.md：
+  Step 1: mcp__matlab__run_matlab_file → 重跑 CP-1.5 的算法仿真
+  Step 2: tools/export_gains_to_c.py → 确认 .h 与 CP-1.5 一致
+  Step 3: /build-cmake | /build-keil | /build-iar → 编译固件
+  Step 4: /flash-openocd | /flash-jlink → 烧录
+  Step 5: /serial-monitor → 抓闭环 / 测量日志
+  Step 6: mcp__matlab__evaluate_matlab_code → 实测 vs 仿真对比
+```
+
+任一步 status != success → [QA] 直接 FAIL，按 `refs/failure-taxonomy.md` 路由。
+
+#### 3.1 MIL / SIL / PIL 三层验证（控制 / 滤波器 / 测量类题强制跑）
+
+```text
+MIL：mcp__matlab__evaluate_matlab_code 跑 Simulink 模型（或纯 .m 仿真）
+     → 参考输出 mil_ref.mat
+SIL：若用 Simulink + Embedded Coder：set_param 切 'Software-in-the-Loop (SIL)'
+     → 生成 C 桌面编译 → sil_output.mat
+     → 对比 mil_ref：差 < 1e-6 才通过
+PIL：set_param 切 'Processor-in-the-Loop (PIL)' → 交叉编译到 MCU
+     → 实测 pil_output.mat → 对比 mil_ref：差 < 1e-3 才通过
+```
+
+阈值见 `modes/matlab-embedded-toolkit.md` 场景 10 详细表。三层定位矩阵帮助定位 bug 在模型 / 代码生成 / 编译器 / 硬件哪一层。
+
+#### 3.2 标准静态检查 + 嵌入式专项
 
 逐项检查，**C 类或 D 类发现任何问题，禁止进入阶段四**：
 
@@ -448,6 +715,14 @@ git tag v0.2-dev && git push origin v0.2-dev
   ✅/❌ 调试宏可一键关闭（发布版不输出调试信息，节省 CPU）
   ✅/❌ 故障时记录最后状态到 RAM/Flash（黑匣子功能）
 
+【H. 实时性专项（红线，所有控制/采集类题强制 ★v2.1）】
+  控制周期 jitter ____ μs / 阈值 ____ μs    ✅/❌
+  ISR 最大耗时 ____ μs / 阈值 ____ μs       ✅/❌
+  栈水位剩余 ____ %  / 阈值 ≥ 20%          ✅/❌
+  CPU 占用率 ____ % / 阈值 < 70%            ✅/❌
+  浮点路径单次 ____ μs（仅 FPU-less）       ✅/❌
+  实测方式（必填）：GPIO toggle + 示波器 / DWT->CYCCNT / RTOS API
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 问题清单（模块 | 文件 | 问题 | 修复方案）：
   [序号] [DRV/ALG] file.c — 问题 → 修复方案
@@ -487,9 +762,41 @@ git tag v0.3-qa && git push origin v0.3-qa
 
 ---
 
-### ▶ 阶段四：[ARCH] 集成与交付
+### ▶ 阶段四：集成 + 报告填数据（ownership 拆分）★v2 修订
 
-1. 编写 `main.c`，采用**时间片轮询架构**（裸机下的类 RTOS 调度）：
+**v2 修订（P0-3）**：原版让 `[ARCH]` 写 main.c 与 iron rule "arch 不写代码" 字面冲突；让 `[REPORT]` 改代码也违反 iron rule。CP-4 拆成 **3 个独立 owner**：
+
+| 子动作 | owner | 工具 | 边界 |
+|---|---|---|---|
+| 集成 main.c + 时间片调度 | `embedded-alg` | Write/Edit/Bash | 写 `app/main.c`、连 `bsp_init / svc_init / app_run` |
+| 填实测数据到报告 | `embedded-report` | Read/Write/Edit + mcp__matlab__ | 只改 `比赛报告.md` 的实测数据章节，**禁止改 .c/.h** |
+| CP-4 验收复测 + 集成 PR 合并 | `embedded-arch` | Task/Bash | 派发上述两 Agent + 收 Outcome + 复测 + tag |
+
+**ARCH 不再亲手 `Write main.c`**，但仍负责协调（派 Task / 决策 / 集成 PR / tag）。
+
+**[REPORT] 派发 prompt** 详见 `refs/competition-ai-max-workflow.md §2.7`。摘要：
+
+```
+你是 [REPORT] 报告生成 Agent。
+读所有 编辑清单_*.md + 项目规划清单.md + 硬件资源表.md
+生成 LaTeX/Word 报告骨架，必须含：
+  - 题目分析 + 量化指标
+  - 系统方案框图
+  - 关键算法原理（含公式）
+  - 硬件方案 + BOM
+  - 软件流程图
+  - 实测数据 + 误差分析（调 mcp__matlab__ 画图）
+  - 创新点 / 加分项
+
+强制约束：
+  - "为什么"段必须有非 AI 理由（标 "决策依据：见 研究发现.md §X"）
+  - 数据必须有出处
+  - 编辑清单写 编辑清单_REPORT.md
+```
+
+
+
+**ALG Agent 编写 `main.c`**（ARCH 派发 Task，不亲手写），采用**时间片轮询架构**（裸机下的类 RTOS 调度）：
 
 ```c
 /* main.c 架构模板 */
@@ -587,6 +894,82 @@ GitHub：已推送，标签 v1.0-release
 
 ---
 
+### ▶ 阶段五：[REPORT] 答辩演练 ★新
+
+**目标**：通过 CP-4 后报告已生成，但答辩时**老师听学生说**，不听 AI 说。CP-5 强制做 10 个"为什么"问答演练，确保学生真懂方案。
+
+**[REPORT] 在 CP-4 后跑**：
+
+```text
+[REPORT] 列出 10 个老师最可能问的 why：
+  1. 为什么用 FFT 不用包络检波？
+  2. 为什么选 4096 点 FFT 而不是 1024？
+  3. 为什么 ADC 用三重交替模式？
+  4. 为什么相对误差 ± 1% 而不是 ± 0.5%？
+  ...
+
+每个 why 配：
+  - 回答模板（≤ 60 字）
+  - 备用回答（如果老师追问）
+  - 数据出处（编辑清单 / 仿真报告）
+```
+
+**强制要求**：每个 why 学生**亲自**模拟回答 1 次（不要求录音，但建议至少自己默念）。
+
+**[ARCH] CP-5 提交**：
+
+```bash
+git add 答辩演练.md 比赛报告.md
+git commit -m "[REPORT] 阶段五-答辩演练完成 v1.1
+
+变更文件：
+- 新增: 答辩演练.md（10 个 why + 回答模板）
+- 更新: 比赛报告.md
+
+说明：CP-5 完成，准备上场"
+git push
+git tag v1.1-rehearsed && git push origin v1.1-rehearsed
+```
+
+---
+
+## 自动决策门（v2 核心）★新
+
+[ARCH] 收齐 Agent 输出后按下表自动决策。每个 Agent 输出必须含 **Command Outcome**（见 `refs/contracts.md`）：
+
+```yaml
+status: success | partial_success | blocked | failure
+summary: 一句话
+evidence: [files / commands / indicators]
+next_action: <下一步 / 下游 Agent>
+failure_category: <见 refs/failure-taxonomy.md，仅非 success 时填>
+```
+
+### 决策矩阵
+
+| 所有 Agent 状态 | [ARCH] 决策 | 用户介入 |
+|---|---|---|
+| 全部 success | 自动 CP-X 提交 + 进下一阶段 | ❌ 不打扰 |
+| 任一 partial_success | 标记轮次失败 + 进修复轮 | ⚠️ 通知，不打断 |
+| 任一 blocked | 暂停 + 列候选向用户 | ✅ 必须人工 |
+| 任一 failure | 按 failure_category 自动路由 | ⚠️ 通知 |
+
+### 自动失败路由
+
+| failure_category | 自动处置 | 重试上限 |
+|---|---|---|
+| `environment-missing` | 列缺失依赖 + 安装命令 | 0（须人工装）|
+| `project-config-error` | 回该 Agent + 提示配置项 | 1 |
+| `connection-failure` | 阻塞 + 检查硬件 | 0 |
+| `artifact-missing` | 回上游 Agent | 1 |
+| `target-response-abnormal` | 进 `refs/systematic-debugging.md` | 2 |
+| `permission-problem` | 阻塞 | 0 |
+| `ambiguous-context` | **必须人工** | 0 |
+
+**同根因 3 次失败规则**（来自主协议）：每个 Agent 各自计 3 次。
+
+---
+
 ## 比赛模式核心规则
 
 | 规则 | 说明 |
@@ -640,3 +1023,116 @@ git checkout v0.3-qa -- main.c  # 或只回退某个文件
 | 需要在稳定版上做小修改 | 从稳定标签创建修复分支 | `git checkout -b hotfix v0.3-qa` |
 
 > **黄金法则**：比赛现场任何修改前，先 `git add -A && git commit -m "赛场备份"` 保存当前状态，再修改。宁可多一个提交，也不要丢失能用的代码。
+
+---
+
+## 三人极简模式（Mini）★新
+
+针对 3 人队 / 时间紧 / 队员不熟 git/MCP 的场景，v2 极限模式（7 Agent + 6 阶段 + 多次 commit）确实过重。Mini 模式压缩到**最小可跑**。
+
+### 触发条件
+
+- 队伍 3 人及以下
+- 全员有 1+ 人不熟 Git / MCP 调用
+- 决赛时间 ≤ 48 小时
+- 复赛及以前不上 PIL
+
+### Agent 压缩：4 → 3 个
+
+| Agent | 合并角色 | 谁来扮 |
+|---|---|---|
+| `[CAPTAIN]` | [ARCH] + [REPORT] | 队长（统筹 + 报告）|
+| `[HARD]` | [DRV] + 硬件焊接 | 硬件队员 |
+| `[SOFT]` | [ALG] + [QA] + [MATLAB] + [VISION] | 软件队员（主用 Claude）|
+
+注意：**Claude 仍然按角色派 Agent**，但人类参与时合并。即：Claude 内部派 7 Agent 输出，3 人按角色合并 review + 推进。
+
+### 阶段压缩：6 → 4 个
+
+| Mini 阶段 | 对应 v2 阶段 | 时间预算 |
+|---|---|---|
+| **mini-init** | CP-0a + CP-0b | 30 分钟 |
+| **mini-sim** | CP-1 + CP-1.5 + CP-2 | 6-10 小时 |
+| **mini-hw** | CP-3 + CP-4（不跑 PIL）| 4-8 小时 |
+| **mini-final** | CP-5 | 1-2 小时 |
+
+### 跳过项（损失换速度）
+
+- ⏭️ PIL（Processor-in-the-Loop）— 直接上板实测
+- ⏭️ 静态分析（arch-check.sh）— 时间够再跑
+- ⏭️ 远端 git push — 本地 commit 即可
+- ⏭️ 双区 Flash CRC（如果题型 E）— 单区即可
+- ⏭️ 多文件分模块 — `service/` 内单 `.c` 也行（但 main.c 不能塞业务）
+
+### Mini 模式 Git 简化
+
+```bash
+# 4 个 tag 即可，不要 7 个
+git tag v0-init
+git tag v1-sim-ok
+git tag v2-hardware-ok
+git tag v3-final
+```
+
+### 答辩时怎么说
+
+**禁**：说"用了 Mini 模式"（评审会扣分）。
+**对**：按"完整流程"说，但只列做了的部分。
+
+### 与 task-router 联动
+
+```
+[ARCH] CP-0b 路由完，多写一行：
+mode: mini                            # 三人极简模式开启
+```
+
+---
+
+## v2 极限工作流参考资源
+
+| 文件 | 用途 |
+|---|---|
+| `refs/competition-ai-max-workflow.md` | 完整 7 Agent prompt 模板（直接 copy-paste 派发） + 自动决策门 + 完整流程示例 |
+| `refs/competition-index.md` | 历年电赛 + 智能车赛题映射 → 快速定位 E1-E7 场景 |
+| `modes/matlab-firmware-pipeline.md` | 一键流水线（算→.h→编译→烧→监→对比），CP-3 [QA] 强制调用 |
+| `modes/matlab-toolkit-competition.md` | 7 个竞赛专项场景（E1-E7） |
+| `modes/matlab-embedded-toolkit.md` | 10 场景算法主线（基础 1-8 + Simulink 9 + MIL/SIL/PIL 10） |
+| `refs/contracts.md` | Command Outcome Schema 标准格式 |
+| `refs/failure-taxonomy.md` | 7 类失败分类 + 自动路由参考 |
+
+### 典型派发流程（电赛 4 天压缩到 1.5-2 天）
+
+```
+T+0       [ARCH] 读题 → CP-0
+T+0.5h    [ARCH] 三表 + 接口契约 → CP-1
+T+2h      派 [MATLAB] (+ [VISION])
+T+5h      CP-1.5 通过
+T+5h      同消息派 [DRV] + [ALG] + [REPORT]
+T+10h     CP-2 通过
+T+12h     [QA] 跑流水线 + MIL/SIL/PIL → CP-3
+T+16h     [ARCH] + [REPORT] 集成 → CP-4
+T+18h     [REPORT] 答辩演练 → CP-5
+T+18h ~ T+72h   纯硬件调试 / 多次试跑 / 备份方案
+```
+
+完整示例见 `refs/competition-ai-max-workflow.md §5`。
+
+### 工业系统集成题分支（CIMC 西门子杯 / 电赛仪表题 等）
+
+当题目属于"多外设集成 + 弱算法"类型（典型：电压采集 + CLI + TF 文件系统 + Flash 持久化 + OLED 显示），按下面流程跑：
+
+```
+T+0      [ARCH] 读题 → 8 子系统拆解（参考 modes/industrial-data-acquisition.md）
+T+0.5h   [ARCH] 三表 + 接口契约 → CP-1
+T+1h     CP-1.5 跳过（无算法仿真需求，[MATLAB] / [VISION] 不派）
+T+1h     同消息派 4 Agent：[DRV] + [ALG] + [QA] + [REPORT]
+T+8h     CP-2 通过 → CP-3 [QA] 跑流水线 Step 3-5（编译/烧/监），跳过 Step 1-2/6
+T+12h    [ARCH] + [REPORT] 整合 → CP-4 → CP-5
+T+12h ~  剩余时间：边界测试 / 多次试跑 / 答辩演练
+```
+
+典型用例（西门子 CIMC 2025）：
+
+- 主入口 mode：`modes/industrial-data-acquisition.md`
+- CLI 框架：`refs/cli-command-framework.md`
+- 端到端示例：`refs/example-siemens-cimc-2025.md`

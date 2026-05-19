@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # embedded-dev arch-check: 全工程层级合规扫描
 #
-# 用法：在工程根目录运行 ./scripts/arch-check.sh
+# 用法：
+#   ./scripts/arch-check.sh             # 默认：跑 ARCH-1~7 层级检查
+#   ./scripts/arch-check.sh --hw-check  # 仅跑 ARCH-8 硬件资源冲突检测
+#   ./scripts/arch-check.sh --all       # 全部
 #
 # 检查项（任一失败即 exit != 0）：
 #   ARCH-1: 应用层 (app/) 不得 #include 厂商 HAL 头
@@ -11,13 +14,28 @@
 #   ARCH-5: 单 .c 文件 ≤ 800 行
 #   ARCH-6: 单 .h 公共 API（函数声明）≤ 20
 #   ARCH-7: mega-header（项目级 catch-all .h，含 ≥ 10 个 #include）
+#   ARCH-8: 硬件资源表 hw_lock 块冲突检测（pin/dma/irq 重复、owner 不存在等）
 #
 # 输出协议：
-#   - stderr：进度（>>> [N/7] ...）和最终汇总
+#   - stderr：进度（>>> [N/M] ...）和最终汇总
 #   - stdout：每行一个违规，格式 [ARCH-N] file:line - reason
 #   - exit code：0 = stdout 为空（全通过），1 = stdout 有内容
 
 set -u
+
+# ===== 参数解析 =====
+RUN_ARCH=1
+RUN_HW=1
+if [ "${1:-}" = "--hw-check" ]; then
+    RUN_ARCH=0
+    RUN_HW=1
+elif [ "${1:-}" = "--all" ]; then
+    RUN_ARCH=1
+    RUN_HW=1
+elif [ "${1:-}" = "--no-hw" ]; then
+    RUN_ARCH=1
+    RUN_HW=0
+fi
 
 # ===== 配置 =====
 APP_LAYER_DIRS=(app application project/code/app src/app code/app)
@@ -268,6 +286,126 @@ check_mega_header() {
     rm -f "$mega_list_file" 2>/dev/null
 }
 
+# ===== 检查 8: 硬件资源表 hw_lock 块冲突检测（ARCH-8）=====
+check_hw_lock() {
+    echo ">>> [8/8] hw_lock conflict detection (硬件资源表.md)" >&2
+
+    # 找硬件资源表（中文名优先，英文 fallback）
+    local hw_file=""
+    for candidate in "硬件资源表.md" "hw-resources.md"; do
+        if [ -f "$candidate" ]; then
+            hw_file="$candidate"
+            break
+        fi
+    done
+    if [ -z "$hw_file" ]; then
+        echo "[HINT-8] 未找到 硬件资源表.md / hw-resources.md，跳过 hw_lock 检测" >&2
+        return 0
+    fi
+
+    # 提取 hw_lock 块（```yaml ... ``` 之间，含 'hw_lock:' 行的那段）
+    local yaml_block
+    yaml_block=$(awk '
+        /^```yaml[[:space:]]*$/ { in_block=1; next }
+        /^```[[:space:]]*$/      { if (in_block) { in_block=0; if (has_hw) exit } }
+        in_block {
+            if (/^hw_lock:/) has_hw=1
+            if (has_hw) print
+        }
+    ' "$hw_file")
+
+    if [ -z "$yaml_block" ]; then
+        printf "[ARCH-8] %s:1 - 未找到 hw_lock YAML 块（机器可读资源锁定区缺失）\n" "$hw_file"
+        return 0
+    fi
+
+    # 写到临时文件供 Python / 多次 awk 用
+    local hw_yaml
+    hw_yaml=$(mktemp 2>/dev/null || echo "/tmp/hw_yaml.$$.tmp")
+    printf '%s\n' "$yaml_block" > "$hw_yaml"
+
+    # ---- 检测 8a: pins.id 重复 ----
+    awk '
+        /^[[:space:]]+- \{[[:space:]]*id:[[:space:]]*[A-Za-z0-9_]+/ && section=="pins" {
+            match($0, /id:[[:space:]]*[A-Za-z0-9_]+/)
+            v = substr($0, RSTART+3, RLENGTH-3); gsub(/^[ \t]+|[ \t,]+$/, "", v)
+            count[v]++
+            if (count[v] > 1) printf "  pin %s 重复（第 %d 次）\n", v, count[v]
+        }
+        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
+        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
+        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
+        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
+    ' "$hw_yaml" | while IFS= read -r dup; do
+        [ -z "$dup" ] && continue
+        printf "[ARCH-8] %s:1 - hw_lock.pins:%s\n" "$hw_file" "$dup"
+    done
+
+    # ---- 检测 8b: dma.stream 重复 ----
+    awk '
+        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
+        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
+        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
+        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
+        /^[[:space:]]+- \{[[:space:]]*stream:[[:space:]]*[A-Za-z0-9_]+/ && section=="dma" {
+            match($0, /stream:[[:space:]]*[A-Za-z0-9_]+/)
+            v = substr($0, RSTART+7, RLENGTH-7); gsub(/^[ \t]+|[ \t,]+$/, "", v)
+            count[v]++
+            if (count[v] > 1) printf "  dma.stream %s 重复\n", v
+        }
+    ' "$hw_yaml" | while IFS= read -r dup; do
+        [ -z "$dup" ] && continue
+        printf "[ARCH-8] %s:1 - hw_lock.dma:%s\n" "$hw_file" "$dup"
+    done
+
+    # ---- 检测 8c: irq.irqn 重复 + 同优先级重复 ----
+    awk '
+        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
+        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
+        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
+        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
+        /^[[:space:]]+- \{[[:space:]]*irqn:/ && section=="irq" {
+            # 提 irqn 名
+            match($0, /irqn:[[:space:]]*[A-Za-z0-9_]+/)
+            irqn = substr($0, RSTART+5, RLENGTH-5); gsub(/^[ \t]+|[ \t,]+$/, "", irqn)
+            cnt_irqn[irqn]++
+            if (cnt_irqn[irqn] > 1) printf "  irq.irqn %s 重复\n", irqn
+            # 提抢占/子优先级
+            if (match($0, /priority_preempt:[[:space:]]*[0-9]+/)) {
+                pp = substr($0, RSTART+17, RLENGTH-17); gsub(/[ \t,}]+/, "", pp)
+            } else pp="?"
+            if (match($0, /priority_sub:[[:space:]]*[0-9]+/)) {
+                ps = substr($0, RSTART+13, RLENGTH-13); gsub(/[ \t,}]+/, "", ps)
+            } else ps="?"
+            key = pp"_"ps
+            cnt_pri[key]++
+            if (cnt_pri[key] > 1) printf "  irq.priority %s/%s 重复（%s 与之前条目同优先级）\n", pp, ps, irqn
+        }
+    ' "$hw_yaml" | while IFS= read -r dup; do
+        [ -z "$dup" ] && continue
+        printf "[ARCH-8] %s:1 - hw_lock.irq:%s\n" "$hw_file" "$dup"
+    done
+
+    # ---- 检测 8d: timers.id 重复 ----
+    awk '
+        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
+        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
+        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
+        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
+        /^[[:space:]]+- \{[[:space:]]*id:[[:space:]]*[A-Za-z0-9_]+/ && section=="timers" {
+            match($0, /id:[[:space:]]*[A-Za-z0-9_]+/)
+            v = substr($0, RSTART+3, RLENGTH-3); gsub(/^[ \t]+|[ \t,]+$/, "", v)
+            cnt[v]++
+            if (cnt[v] > 1) printf "  timers.id %s 重复\n", v
+        }
+    ' "$hw_yaml" | while IFS= read -r dup; do
+        [ -z "$dup" ] && continue
+        printf "[ARCH-8] %s:1 - hw_lock.timers:%s\n" "$hw_file" "$dup"
+    done
+
+    rm -f "$hw_yaml" 2>/dev/null
+}
+
 # ===== 执行 =====
 echo "==> embedded-dev arch-check (project root: $(pwd))" >&2
 echo "" >&2
@@ -277,13 +415,18 @@ TMPOUT="$(mktemp 2>/dev/null || echo "/tmp/arch-check.$$.tmp")"
 trap 'rm -f "$TMPOUT"' EXIT
 
 {
-    check_app_vendor_includes
-    check_main_c_calls
-    check_isr_body_length
-    check_app_extern
-    check_c_file_length
-    check_h_api_count
-    check_mega_header
+    if [ "$RUN_ARCH" = "1" ]; then
+        check_app_vendor_includes
+        check_main_c_calls
+        check_isr_body_length
+        check_app_extern
+        check_c_file_length
+        check_h_api_count
+        check_mega_header
+    fi
+    if [ "$RUN_HW" = "1" ]; then
+        check_hw_lock
+    fi
 } > "$TMPOUT"
 
 # 同时把违规写到 stdout 给调用方

@@ -61,23 +61,223 @@
 - 若流程中断，对应的失败分类
 - 推荐的下一步 skill
 
+## 比赛状态机（Competition State）★v2
+
+比赛模式 v2 的全局状态由"当前 CP + 状态机"显式表达，不允许 Agent 靠自然语言推进。`项目规划清单.md` 必须在顶部维护以下 YAML 块（由 `embedded-arch` 写入，所有 subagent 只读）：
+
+```yaml
+competition_state:
+  trace_id: comp-2026-001
+  current_cp: CP-2           # CP-0a / CP-0b / CP-1 / CP-1.5 / CP-2 / CP-3 / CP-4 / CP-5
+  state: in_progress          # not_started / in_progress / passed / blocked / failed
+  blocked_by:                 # 仅 state=blocked 时填
+    - defect_id: D-001
+      owner_agent: embedded-drv
+      reason: "ADC 多通道 DMA 缓冲区长度错误"
+  passed_cps:                 # 已过的 CP（含 git tag）
+    - cp: CP-0a
+      tag: v0.0-init
+      timestamp: 2026-05-19T09:00:00+08:00
+    - cp: CP-0b
+      tag: v0.0-routing
+      timestamp: 2026-05-19T09:15:00+08:00
+    - cp: CP-1
+      tag: v0.1-arch
+      timestamp: 2026-05-19T11:30:00+08:00
+    - cp: CP-1.5
+      tag: v0.15-sim
+      timestamp: 2026-05-19T16:00:00+08:00
+  active_agents:              # 当前并行运行的 subagent
+    - embedded-drv
+    - embedded-alg
+    - embedded-report
+  defect_queue: []            # Defect Ticket 列表（见下方）
+  retry_table: {}             # root_cause_id → retry_count_global
+```
+
+### CP 门禁表（自动决策门）
+
+各 CP 的进入/通过条件，`embedded-arch` 据此判定是否允许进入下一 CP：
+
+| CP | 进入条件 | 通过条件（全部 satisfy 才能 tag） | 阻塞处置 |
+|---|---|---|---|
+| CP-0a | 用户触发"启用比赛模式" | 工程目录 + `.gitignore` + `git init` 完成 | — |
+| CP-0b | CP-0a passed | `docs/competition-routing.md` 含 MAIN+TAGS+路由置信度 high；5 元组验收表生成 | low 置信 → 暂停问用户 |
+| CP-1 | CP-0b passed | `硬件资源表.md` YAML 块通过 `arch-check.sh --hw-check`；接口契约 v1.0 写入 `架构设计.md` | pin/DMA/IRQ 冲突 → 回 ARCH 重排 |
+| CP-1.5 | CP-1 passed；MATLAB/VISION 派发条件成立 | 全部仿真 Agent `status=success` + 关键指标量化达标 | 连续 3 轮不达标 → 人工裁决 |
+| CP-2 | CP-1.5 passed（或 SYSTEM 题跳过 CP-1.5） | 全部并行开发 Agent `status=success`；编辑清单合并完成 | 任一 `failure` → 进 defect_queue |
+| CP-3 | CP-2 passed | `arch-check.sh` exit 0；`include-graph.py` 无 LAYER-VIOL；MIL/SIL/PIL（控制题）；5 元组 ≥ 85/100 | C/D 类红线问题禁止过 CP |
+| CP-4 | CP-3 passed | 集成 `main.c` 编译烧录通过；报告填实测数据；`embedded-qa` 复验 PASS | 集成失败 → 回 alg/drv 修 |
+| CP-5 | CP-4 passed | 10 whys 答辩演练 ≥ 8/10；学生亲自答完；`答辩演练.md` 生成 | 失败项 → 回 report 补证据 |
+
+**强制规则**：
+
+1. `current_cp` 字段是唯一真相源；不允许 Agent 跳 CP（如 CP-1 直接跳 CP-3）
+2. 任何 Agent 看到 `state=blocked` 时必须**只读不写**，等待 arch 解除阻塞
+3. `passed_cps` 按时间顺序追加，不允许覆盖；回档时新增 `rollback` 字段（不删 entry）
+4. `retry_table` 按 `root_cause_id` 全局计数；同根因第 3 次 failure → STOP + 写 `研究发现.md`
+
+### Competition State 与 git tag 一一对应
+
+```
+CP-0a passed → v0.0-init
+CP-0b passed → v0.0-routing
+CP-1  passed → v0.1-arch
+CP-1.5 passed → v0.15-sim
+CP-2  passed → v0.2-dev
+CP-3  passed → v0.3-qa
+CP-4  passed → v1.0-release
+CP-5  passed → v1.1-rehearsed
+修复迭代 → v0.X-fix1 / fix2 / ...（不覆盖主 tag）
+```
+
+## Defect Ticket Schema（缺陷回派协议）★v2
+
+修补"`embedded-qa` 不修代码、`embedded-arch` 不写代码 → 缺陷无人接"的字面契约 bug。QA 发现的每条 issue 必须打包成 `Defect Ticket` 写入 `编辑清单_QA.md` + `competition_state.defect_queue`，由 ARCH 据此**定向回派** owner_agent 修复。
+
+### Ticket 字段
+
+```yaml
+- defect_id: D-001                    # 工程内唯一，QA 生成（D-001, D-002, ...）
+  severity: critical                  # critical / high / medium / low
+  owner_agent: embedded-drv           # 必填，从 QA 失败归因得出，决定回派目标
+  trace_id: comp-2026-001
+  found_in_cp: CP-3                   # 在哪个 CP 发现
+  blocking_cp: CP-3                   # 阻塞哪个 CP 通过（一般等于 found_in_cp）
+
+  category: target-response-abnormal  # 沿用 failure-taxonomy.md 7 类
+  root_cause_id: RC-ADC-DRIFT-001     # 与 retry_table 联动，同根因复用
+
+  title: "ADC 多通道读数漂移 8 LSB"
+  expected: "差值 < 2 LSB（11.5 cycles 采样周期）"
+  actual: "差值 8-12 LSB，与采样顺序相关"
+
+  reproduce_step:                     # 完整可粘贴步骤，让 owner_agent 不靠猜
+    - "/build-cmake debug"
+    - "/flash-openocd build/app.elf"
+    - "/serial-monitor COM3 115200 -duration 30"
+    - "观察 ch0-ch3 raw 值"
+  rerun_command: |                    # 修复后 QA 用这条命令复测
+    /build-cmake debug && /flash-openocd && /serial-monitor COM3 115200 -duration 30
+
+  evidence:                           # 证据路径
+    - log/adc_drift_20260520.csv
+    - 编辑清单_QA.md#L42-L58
+
+  suggested_fix:                      # QA 给出修复建议（不强制采纳）
+    - "drivers/drv_adc.c: 采样周期 ADC_SampleTime_1Cycles5 → ADC_SampleTime_239Cycles5"
+    - "或：在多通道间插入 dummy read"
+
+  status: open                        # open / fixing / rerun_pending / resolved / wontfix
+  retry_count_global: 0               # 全局重试次数（与 root_cause_id 联动）
+  resolution:                         # 闭环填，resolved 后填
+    fix_commit: ""                    # commit hash
+    fixed_by_agent: ""
+    verified_by_qa: ""
+    rerun_evidence: ""
+```
+
+### Ticket 生命周期
+
+```
+QA 创建（status=open）
+   ↓
+ARCH 读 defect_queue → 按 owner_agent 派 Task → ticket.status = fixing
+   ↓
+owner_agent 修复 → commit → 在 编辑清单_<role>.md 引用 defect_id → ticket.status = rerun_pending
+   ↓
+ARCH 唤起 QA 复测（带 rerun_command）→ QA 验证
+   ↓
+  ✓ → ticket.status = resolved，填 resolution 字段
+  ✗ → retry_count_global++，若 = 3 → STOP + 写 研究发现.md
+```
+
+### 强制规则
+
+1. **QA 不允许只说"failure"** — 必须打 Defect Ticket，否则 CP-3 不能 FAIL
+2. **owner_agent 是必填字段** — 由 QA 据失败现象 + failure-taxonomy.md 决定，不能写 `unknown`
+3. **同 root_cause_id 在所有 ticket 间共享重试计数**（替代旧版按 Agent 各计 3 次）
+4. **resolved 的 ticket 不允许删除** — 只能改 status，保留可审计性
+
 ## 命令结果结构（Command Outcome Schema）
 
-每个 skill 的结果都应当归入以下状态之一：
+每个 skill / subagent 的结果都应当归入以下状态之一：
 
 - `success`：请求动作已完成。
 - `partial_success`：有部分有效进展，但主目标尚未完全达成。
 - `blocked`：由于仍存在高风险未知项，skill 主动停止。
 - `failure`：在信息已足够的前提下，动作执行失败。
 
-除状态外，还应至少配套这些字段：
+### 必填字段（每个 Outcome 都有）
 
+- `status`：上述 4 个之一
 - `summary`：一句话说明发生了什么
-- `evidence`：最关键的日志、文件或探测证据
-- `next_action`：推荐的下一条命令或下一个 skill
-- `failure_category`：当状态不是 `success` 时，使用 [failure-taxonomy.md](failure-taxonomy.md) 中的分类
+- `owner_agent`：产出本 Outcome 的 subagent 名（`embedded-arch` / `embedded-drv` / ...）★v2
+- `trace_id`：贯穿整个比赛的 ID，例如 `comp-2026-001`★v2
+- `evidence`：最关键的日志、文件或探测证据（路径列表或简短引用）
+- `artifact_paths`：本轮新增/修改的代码/.h/脚本/数据文件路径列表★v2
+- `next_action`：推荐的下一条命令或下一个 subagent
 
-## 最小示例
+### 失败/阻塞时追加字段
+
+- `failure_category`：使用 [failure-taxonomy.md](failure-taxonomy.md) 中的分类
+- `root_cause_id`：根因 ID（如 `RC-ADC-DRIFT-001`），同一根因在多个 Agent 间漂移时复用此 ID★v2
+- `retry_count_global`：基于 `root_cause_id` 的全局重试计数（不再按 Agent 各自计 3 次）★v2
+- `reproduce_command`：可粘贴的复现命令（让下游 Agent 不靠猜）★v2
+- `blocking_cp`：当前阻塞的 CP 编号（`CP-0a` ~ `CP-5`）★v2
+
+### 推荐字段
+
+- `confidence`：`high` / `medium` / `low`（自评信心度，`low` 时主线必须人工介入）★v2
+- `human_decision_required`：`true` / `false`（候选多于一个、风险过高时必须 `true`）★v2
+
+### 最小示例（success）
+
+```yaml
+status: success
+owner_agent: embedded-drv
+trace_id: comp-2026-001
+summary: 已实现 UART/SPI/ADC/RTC 全部驱动，DMA + IRQ 配置完成
+artifact_paths:
+  - drivers/drv_uart.c
+  - drivers/drv_uart.h
+  - drivers/drv_adc.c
+  - drivers/drv_adc.h
+  - hal/ports/stm32f4/hal_uart_stm32f4.c
+evidence:
+  - 编辑清单_DRV.md
+  - arch-check.sh exit 0
+confidence: high
+next_action: embedded-alg can consume drv_*.h
+```
+
+### 失败示例（含 root_cause_id 全局重试）
+
+```yaml
+status: failure
+owner_agent: embedded-qa
+trace_id: comp-2026-001
+summary: ADC 多通道读数漂移，差值 > 8 LSB
+failure_category: target-response-abnormal
+root_cause_id: RC-ADC-DRIFT-001
+retry_count_global: 2     # 第 3 次失败就 STOP，不再按 Agent 各自计
+reproduce_command: |
+  /flash-openocd build/app.elf
+  /serial-monitor COM3 115200 -duration 30
+artifact_paths:
+  - log/adc_drift_20260520.csv
+evidence:
+  - 编辑清单_QA.md L42-58
+  - log/adc_drift_20260520.csv
+blocking_cp: CP-3
+confidence: medium
+human_decision_required: false
+next_action: route to embedded-drv (ADC gain prescaler) per failure-taxonomy.md
+```
+
+### 历史兼容（仅 Project Profile 场景）
+
+旧版 Project Profile success 示例（保留兼容）：
 
 ```yaml
 status: success

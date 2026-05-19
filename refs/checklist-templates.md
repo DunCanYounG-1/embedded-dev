@@ -40,6 +40,25 @@
 - **创建日期**：[日期]
 - **最后更新**：[日期]
 
+## Competition State（仅比赛模式 v2 需要）
+
+```yaml
+competition_state:
+  trace_id: comp-2026-001
+  current_cp: CP-0b            # CP-0a / CP-0b / CP-1 / CP-1.5 / CP-2 / CP-3 / CP-4 / CP-5
+  state: in_progress           # not_started / in_progress / passed / blocked / failed
+  blocked_by: []               # 仅 state=blocked 时填，结构见 refs/contracts.md
+  passed_cps:                  # 已过的 CP，含 git tag
+    - cp: CP-0a
+      tag: v0.0-init
+      timestamp: 2026-05-19T09:00:00+08:00
+  active_agents: []            # 当前并行运行的 subagent 列表
+  defect_queue: []             # Defect Ticket，结构见 refs/contracts.md
+  retry_table: {}              # root_cause_id → retry_count_global
+```
+
+> 字段语义与门禁表完整规范见 `refs/contracts.md` §比赛状态机。`embedded-arch` 写入，其他 subagent 只读。
+
 ## 轮次计划
 
 | 轮次 | 目标 | 责任角色 | 验证标准 | 状态 | 备注 |
@@ -86,11 +105,15 @@
 
 ## [日期] - [任务简述]
 - **trace_id**：`<id>`
+- **owner_agent**：`embedded-drv`           ★v2.1 必填（哪个 subagent 写的）
 - **轮次/角色**：`Round 2 / Builder`
 - **修改文件**：`文件路径`
+- **artifact_hash**：`sha256:<前 12 字符>`  ★v2.1（git hash-object 算出，确认产物未被覆盖）
 - **操作类型**：新增 / 修改 / 删除
 - **操作内容**：简要描述做了什么
 - **关联模块**：涉及的功能模块名称
+- **关联 Ticket**：`D-001` / 无           ★v2.1（修复 Defect Ticket 时填）
+- **status**：`open` / `fixing` / `rerun_pending` / `resolved`  ★v2.1（与 Defect Ticket 联动；非修复操作填 `resolved`）
 - **验证标准**：`<命令或通过条件>`
 - **验证结果**：通过 / 失败 / 待验证
 - **Git提交**：`<commit hash>` / 无（无变更，未提交）
@@ -98,14 +121,47 @@
 - **回档记录**：无 / 从 `<hashA>` 回到 `<hashB>`（原因：XXX，stash：是/否）
 
 ## [日期] - [任务简述]
-- **修改文件**：`文件路径`
+- **trace_id**：`comp-2026-001`
+- **owner_agent**：`embedded-drv`
+- **修改文件**：`drivers/drv_led.c`
+- **artifact_hash**：`sha256:a1b2c3d4e5f6`
 - **操作类型**：新增
-- **操作内容**：新建 LED 驱动模块 led.c / led.h
+- **操作内容**：新建 LED 驱动模块 drv_led.c / drv_led.h
 - **关联模块**：LED
+- **关联 Ticket**：无
+- **status**：resolved
 - **Git提交**：`a1b2c3d`
 - **远端同步**：已 push
 - **回档记录**：无
 ```
+
+### 编辑清单_<role>.md 子清单（v2.1）
+
+7 个 subagent 各自维护一个 `编辑清单_<ROLE>.md`（避免并行写冲突），arch 在 CP-2 末尾合并到主 `编辑清单.md`：
+
+```markdown
+# 编辑清单_DRV   （embedded-drv 写）
+
+## [日期] - 实现 UART/SPI/ADC/RTC 驱动
+- **trace_id**：`comp-2026-001`
+- **owner_agent**：`embedded-drv`
+- **新增文件**：
+  | 路径 | artifact_hash | 公共 API |
+  |---|---|---|
+  | drivers/drv_uart.c | sha256:1a2b3c4d... | drv_uart_init / write / read |
+  | drivers/drv_adc.c  | sha256:5e6f7a8b... | drv_adc_init / read_channel |
+- **接口契约符合度**：与 架构设计.md v1.0 一致 ✓
+- **arch-check.sh**：exit 0 ✓
+- **arch-check.sh --hw-check**：exit 0 ✓
+- **关联 Ticket**：无
+- **status**：resolved
+- **handoff_to**：embedded-alg（可消费 drv_*.h）
+```
+
+合并规则：
+1. CP-2 末尾 arch 把 `编辑清单_<ROLE>.md` 内容 append 到主 `编辑清单.md`
+2. 删除 `编辑清单_<ROLE>.md` 临时文件
+3. 主清单按时间倒序排列
 
 ### 注意事项
 
@@ -133,7 +189,48 @@
 - **NVIC 分组**：[如 Group2 (2位抢占/2位子优先级)]
 - **最后更新**：[日期]
 
-## 引脚分配表
+## 资源锁定区（机器可读，必填）★v2
+
+`scripts/arch-check.sh --hw-check` 会解析此 YAML 块，**自动检测 pin / DMA / IRQ 冲突**。任何冲突 → CP-1 不允许通过。
+
+```yaml
+hw_lock:
+  pins:
+    - { id: PA0,  peripheral: ADC1,    af: ADC_CH0,    owner: drv_adc,    status: locked }
+    - { id: PA9,  peripheral: USART1,  af: USART1_TX,  owner: drv_uart,   status: locked }
+    - { id: PA10, peripheral: USART1,  af: USART1_RX,  owner: drv_uart,   status: locked }
+    - { id: PB6,  peripheral: TIM4,    af: TIM4_CH1,   owner: drv_pwm,    status: locked }
+    - { id: PC13, peripheral: GPIO,    af: GPIO_OUT,   owner: drv_led,    status: locked }
+  dma:
+    - { stream: DMA1_CH1, peripheral: ADC1,      direction: P2M, owner: drv_adc,  status: locked }
+    - { stream: DMA1_CH4, peripheral: USART1_TX, direction: M2P, owner: drv_uart, status: locked }
+  irq:
+    - { irqn: TIM4_IRQn,   priority_preempt: 0, priority_sub: 0, owner: drv_pwm }
+    - { irqn: USART1_IRQn, priority_preempt: 1, priority_sub: 0, owner: drv_uart }
+    - { irqn: DMA1_CH1_IRQn, priority_preempt: 1, priority_sub: 1, owner: drv_adc }
+  timers:
+    - { id: TIM2, role: systick_alt, owner: bsp,        status: reserved }
+    - { id: TIM4, role: pwm,         owner: drv_pwm,    status: locked }
+```
+
+**字段语义**：
+- `pins.id`：MCU 引脚名（PA0/PB6/...）
+- `pins.peripheral`：使用的外设家族（ADC1/USART1/TIM4/SPI1/I2C1/GPIO）
+- `pins.af`：复用功能（如 TIM4_CH1 / USART1_TX）
+- `dma.stream`：DMA 流（DMA1_CH1 / DMA2_S0 等）
+- `dma.direction`：`P2M` 外设→内存 / `M2P` 内存→外设 / `M2M` 内存→内存
+- `irq.priority_preempt` + `priority_sub`：必须符合 NVIC 分组定义
+- `owner`：必须为下表中的模块前缀（drv_adc/drv_uart/svc_cli/...）
+- `status`：`locked`（已分配）/ `reserved`（保留待用）/ `free`（未分配）
+
+**冲突检测规则**（arch-check.sh 实现）：
+1. `pins.id` 不可重复
+2. `dma.stream` 不可重复
+3. `irq.irqn` 不可重复；同 `priority_preempt + priority_sub` 不可重复
+4. `pins.owner` 必须出现在文件系统的 `drivers/` 或 `service/` 中
+5. `timers.id` 不可重复
+
+## 引脚分配表（人类可读，与 hw_lock 镜像）
 
 | 引脚 | 功能 | 外设 | 复用/重映射 | 状态 | 冲突检测 | 备注 |
 |------|------|------|------------|------|---------|------|

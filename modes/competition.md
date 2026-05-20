@@ -48,7 +48,7 @@ Task(subagent_type="embedded-report", description="...", prompt="...")
 | `[REPORT]` | 报告答辩 | **必选** | 5 元组验收 + 答辩 why-evidence + LaTeX |
 | `[MATLAB]` | 算法仿真 | **看 MAIN**：SIGNAL/METER/MODEM/CONTROL/POWER 必选 / SYSTEM 看 TAGS / X 默认必选 | mcp__matlab__* + 导出 `.h` |
 
-**视觉题处理**：含摄像头/赛道识别/目标追踪的题目，由独立 `auto-vison` skill 承担（embedded-dev 通过 Skill Handoff Contract 调用，参考 `refs/contracts.md` 跨 skill 协作示例）。本 skill 只做控制、计算、底层驱动。
+**视觉题处理**：含摄像头/赛道识别/目标追踪的题目，由独立 `auto-vision` skill 承担（embedded-dev 通过 Skill Handoff Contract 调用，参考 `refs/contracts.md` 跨 skill 协作示例）。本 skill 只做控制、计算、底层驱动。
 
 **Agent 数量**：4-6 个，由 `refs/competition-task-router.md` §2.4 算出。完整 prompt 模板：`refs/competition-ai-max-workflow.md` §2。
 
@@ -355,7 +355,7 @@ git tag v0.1-arch && git push origin v0.1-arch
 
 **为什么加这一步**：原版直接进阶段二并行开发 `[DRV]+[ALG]`，但 `[ALG]` 依赖的算法参数（K 矩阵 / 滤波系数 / LUT）必须先算出来。把仿真作为独立检查点，能让 `[ALG]` 进阶段二时拿到现成的 `.h` 文件，直接 `#include` 即可。
 
-**视觉题处理**：含摄像头/赛道识别的题目，由独立 `auto-vison` skill 在 CP-1.5 同时派发，本 skill 通过 Skill Handoff Contract 消费其产物（参考 `refs/contracts.md`）。本 skill 文档不再展开视觉流程。
+**视觉题处理**：含摄像头/赛道识别的题目，由独立 `auto-vision` skill 在 CP-1.5 同时派发，本 skill 通过 Skill Handoff Contract 消费其产物（参考 `refs/contracts.md`）。本 skill 文档不再展开视觉流程。
 
 **派发方式**：[ARCH] 同一条消息发出 1 个 Agent（embedded-matlab，按题型）。
 
@@ -406,9 +406,9 @@ git tag v0.15-sim && git push origin v0.15-sim
 
 **仿真未达标处置**：
 
-- `[MATLAB] status=blocked` → 回 RESEARCH 换算法（参数调整/不同方案）
-- 同一 `root_cause_id` 全局累计 3 次失败 → **必须人工裁决**：放弃高分项 / 换硬件 / 改题目方案
-- **跨 CP 累计，不重置**：如果同根因在 CP-1.5 已计 2 次，在 CP-2 / CP-3 又出现，第 3 次直接 STOP。详见 `refs/contracts.md §比赛状态机` retry_table 规则
+- `[MATLAB] status=blocked` → 由 `[ARCH]` 重新评估算法方案（参数调整 / 不同方案），必要时回 CP-1 修订接口契约
+- 同一 `root_cause_id` 累计达到 `retry_budget` → **必须人工裁决**：放弃高分项 / 换硬件 / 改题目方案
+- **跨 CP 累计，不重置**：同根因在 CP-1.5 / CP-2 / CP-3 反复出现时共用一个计数槽，累计达到 `retry_budget = min(category_budget, severity_budget)` 即 STOP。详见 `refs/contracts.md §预算公式` retry_table 规则
 
 ---
 
@@ -419,7 +419,7 @@ git tag v0.15-sim && git push origin v0.15-sim
 > **Agent 派发方式**（v2 升级）：在 Claude Code 中，使用一条消息同时发出 N 个 Agent 工具调用（parallel tool calls）。N 由题型决定：
 > - 电赛信号 / 仪表 / 控制类：派 2 个（DRV + ALG）+ 可选 REPORT（写报告骨架）
 > - 智能车电磁直立组：派 2 个（DRV + ALG）+ 可选 REPORT
-> - 复杂综合题：3 个 Agent 同时跑（视觉部分外包给 `auto-vison` skill）
+> - 复杂综合题：3 个 Agent 同时跑（视觉部分外包给 `auto-vision` skill）
 >
 > 各 Agent 写自己的 `编辑清单_<ROLE>.md`，[ARCH] 收齐后合并到 `编辑清单.md`。
 >
@@ -956,17 +956,18 @@ failure_category: <见 refs/failure-taxonomy.md，仅非 success 时填>
 
 ### 自动失败路由
 
-| failure_category | 自动处置 | 重试上限 |
+| failure_category | 自动处置 | category_budget |
 |---|---|---|
 | `environment-missing` | 列缺失依赖 + 安装命令 | 0（须人工装）|
-| `project-config-error` | 回该 Agent + 提示配置项 | 1 |
+| `project-config-error` | 回该 Agent + 提示配置项 | 3 |
 | `connection-failure` | 阻塞 + 检查硬件 | 0 |
-| `artifact-missing` | 回上游 Agent | 1 |
-| `target-response-abnormal` | 进 `refs/systematic-debugging.md` | 2 |
+| `artifact-missing` | 回上游 Agent | 3 |
+| `target-response-abnormal` | 进 `refs/systematic-debugging.md` | 3 |
 | `permission-problem` | 阻塞 | 0 |
 | `ambiguous-context` | **必须人工** | 0 |
+| `realtime-violation` ★v2.1 | 进 `refs/systematic-debugging.md` 查实时性 | 2 |
 
-**同根因 3 次失败规则**（来自主协议）：每个 Agent 各自计 3 次。
+> 上表为 `category_budget`。实际 `retry_budget = min(category_budget, severity_budget)`，其中 `severity=critical` 时为 0（1 次后必须人工裁决）。**按 `root_cause_id` 全局累计、跨 CP 不重置**（非"每个 Agent 各计 3 次"）。权威定义见 `refs/contracts.md §预算公式`。
 
 ---
 
@@ -1105,7 +1106,7 @@ mode: mini                            # 三人极简模式开启
 ```
 T+0       [ARCH] 读题 → CP-0
 T+0.5h    [ARCH] 三表 + 接口契约 → CP-1
-T+2h      派 [MATLAB]（视觉题另派 auto-vison skill）
+T+2h      派 [MATLAB]（视觉题另派 auto-vision skill）
 T+5h      CP-1.5 通过
 T+5h      同消息派 [DRV] + [ALG] + [REPORT]
 T+10h     CP-2 通过

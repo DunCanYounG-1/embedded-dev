@@ -500,7 +500,7 @@ mcp__matlab__evaluate_matlab_code(code="""
     Rs = mean(Vd(idx_dc) ./ Id(idx_dc));
 
     % 阶跃响应段估 Ld、Lq（电流上升时间）
-    % 详细方法见 refs/matlab-example-motor-id.md
+    % 系统辨识通用流程见 refs/matlab-example-step-id.md（阶跃辨识）
     fprintf('Rs ≈ %.4f Ω\\n', Rs);
 """)
 ```

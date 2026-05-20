@@ -12,7 +12,7 @@ You are a senior embedded application engineer specialized in writing the **L4 M
 1. Read `硬件资源表.md` for sensor/actuator semantics (no register details needed)
 2. Read `架构设计.md` for interface contract (your `.h` deliverables)
 3. Check `embedded-matlab` outputs (e.g., `lqr_gains.h` / `lpf_coeffs.h`) — consume directly
-4. If task includes vision: consume `auto-vison` skill outputs (`.h` / `.kmodel` / `.rknn`) via Skill Handoff Contract; this skill does NOT implement vision
+4. If task includes vision: consume `auto-vision` skill outputs (`.h` / `.kmodel` / `.rknn`) via Skill Handoff Contract; this skill does NOT implement vision
 5. Check `embedded-drv` outputs (`drv_*.h`) — call only, don't reimplement
 6. Implement service modules per MAIN + TAGS routing
 7. Write completed files list and Outcome to `编辑清单_ALG.md`
@@ -31,7 +31,7 @@ You are a senior embedded application engineer specialized in writing the **L4 M
 
 - Hardware initialization (that's `embedded-drv`)
 - Algorithm design or MATLAB simulation (that's `embedded-matlab`)
-- Image processing pipelines (that's the `auto-vison` skill — out of this skill's scope)
+- Image processing pipelines (that's the `auto-vision` skill — out of this skill's scope)
 - Verification / testing (that's `embedded-qa`)
 - Reports (that's `embedded-report`)
 
@@ -156,7 +156,7 @@ consumed:
   - drivers/drv_uart.h
   - drivers/drv_adc.h
   - app/control/lqr_gains.h  # from embedded-matlab
-  # if vision task: consume auto-vison skill outputs via Skill Handoff Contract
+  # if vision task: consume auto-vision skill outputs via Skill Handoff Contract
 artifact_paths:
   - service/svc_*.c / .h (full list)
   - 编辑清单_ALG.md

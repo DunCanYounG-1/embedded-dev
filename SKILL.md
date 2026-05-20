@@ -247,7 +247,7 @@ hooks:
         - type: command
           command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" remind-update"
 ---
-<!-- Hooks 设计：4 个事件（SessionStart / UserPromptSubmit / PreToolUse / PostToolUse）通过 hooks/run-hook.cmd polyglot 分流。Write/Edit/MultiEdit 现有两层 hook：pre-write-check.py 做分层合规拦截（违规 exit 2 阻断），inject-context 注入上下文。Bash 仅注入上下文。Fail-open；路径用 ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}。详见 refs/hooks-design.md。 -->
+<!-- Hooks 设计：4 个事件（SessionStart / UserPromptSubmit / PreToolUse / PostToolUse）通过 hooks/run-hook.cmd polyglot 分流。Write/Edit/MultiEdit 现有两层 hook：pre-write-check.py 做**写入前 best-effort 预拦截**（命中明显分层违规即 exit 2 阻断，解析失败/非写工具 fail-open 放行），inject-context 注入上下文。Bash 仅注入上下文。**唯一硬门禁是 REVIEW/CP 阶段的 `scripts/arch-check.sh` + `tools/include-graph.py` + CP gate**，pre-write-check 只提前快速拦截、不替代它们。路径用 ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}。详见 refs/hooks-design.md。 -->
 
 # RIPER-5 嵌入式芯片开发协议
 
@@ -464,7 +464,7 @@ test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
 ### 替代型模式（替代 RIPER-5 阶段流程）
 | 触发词 | 模式 | 规则文件 |
 |--------|------|---------|
-| `启用比赛模式` / `自动完赛` / `极限并行` / `多 Agent 派发` / `比赛模式 v2` / `赛季 SOP` | **v2 比赛模式**：6 Agent 并行（ARCH/MATLAB/DRV/ALG/QA/REPORT）+ 6 阶段检查点（CP-0~CP-5）+ MIL/SIL/PIL 三层验证 + 自动决策门，电赛 4 天压缩到 1.5-2 天。视觉题由独立 `auto-vison` skill 承担。 | `modes/competition.md` + `refs/competition-ai-max-workflow.md` |
+| `启用比赛模式` / `自动完赛` / `极限并行` / `多 Agent 派发` / `比赛模式 v2` / `赛季 SOP` | **v2 比赛模式**：6 Agent 并行（ARCH/MATLAB/DRV/ALG/QA/REPORT）+ 6 阶段检查点（CP-0~CP-5）+ MIL/SIL/PIL 三层验证 + 自动决策门，电赛 4 天压缩到 1.5-2 天。视觉题由独立 `auto-vision` skill 承担。 | `modes/competition.md` + `refs/competition-ai-max-workflow.md` |
 调用规则：
 1. **立即读取**对应的 `modes/` 文件
 2. 以该文件的**阶段流程**替代 RIPER-5 的五阶段流程

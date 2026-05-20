@@ -2,9 +2,14 @@
 
 > **元层文档**：任何嵌入式竞赛题，[ARCH] 拿到题目原文后**第 0 步必读本文**，按决策树落到具体的 mode + Agent 分工 + 评分点模板。
 >
-> 适用：电赛 / 蓝桥杯嵌入式 / 西门子杯 / 工创赛 / 校级 / 省级所有嵌入式赛事。视觉题由独立 `auto-vison` skill 承担。
+> 适用：电赛 / 蓝桥杯嵌入式 / 西门子杯 / 工创赛 / 校级 / 省级所有嵌入式赛事。视觉题由独立 `auto-vision` skill 承担。
 >
 > 设计原则：**只做路由不做实现**。本文不超 500 行，所有具体方法见对应 mode / refs。
+>
+> **权威分工（勿混淆两个路由文件）**：
+> - `refs/competition-task-router.md`（本文）= **静态路由方法论**（决策树 / 角色池矩阵 / 阶段跳过规则），版本受控、跨项目复用，是"怎么路由"的唯一规则源。
+> - `docs/competition-routing.md` = **每个项目现场生成的路由决策产物**（[ARCH] 在 CP-0b 按本文规则填出的 MAIN + TAGS + 置信度 + Agent 分工），是"本题路由成什么"的唯一结果源，各 Agent（含 embedded-matlab）运行时读它。
+> - 二者是"规则 vs 实例"关系，非重复；改路由规则改本文，查本项目分工读 `docs/competition-routing.md`。
 
 ---
 
@@ -31,7 +36,22 @@ Step 4：把题目评分点喂给 refs/competition-scoring-checklist-template.md
 > 三者**各自有专属位置**，不要再写"放项目规划清单顶部"了 — 早期版本遗留，已修。
 ```
 
-完成 Step 1-4 才能进入比赛模式 v2 的 CP-1。
+**CP-0b 硬门禁**：`docs/competition-routing.md` 未生成或缺 MAIN/TAGS/置信度任一字段 → CP-0b 不通过 → **CP-1 不放行**（[ARCH] 不得跳过路由直接派 Agent）。最小模板（[ARCH] 照填）：
+
+```yaml
+# docs/competition-routing.md (CP-0b 产物)
+routing:
+  main: CONTROL              # SIGNAL/METER/MODEM/CONTROL/SYSTEM/POWER/X 之一
+  tags: [MOTOR, IMU, FFT]    # 见 §1.2
+  tag_weights: {MOTOR: 40, IMU: 25, FFT: 15}   # 各 TAG 估分占比 %
+  confidence: high           # high/medium/low；low → 暂停问用户
+  agents: [ARCH, DRV, ALG, MATLAB, QA, REPORT]  # 4-6 个
+  skip: {CP-1.5: false, step6: false}
+  vision_handoff: false      # true 则视觉部分派 auto-vision skill
+  checklist: docs/checklist-100分.md
+```
+
+完成 Step 1-4（即生成上表）才能进入比赛模式 v2 的 CP-1。
 
 ---
 
@@ -63,7 +83,7 @@ Step 4：把题目评分点喂给 refs/competition-scoring-checklist-template.md
 
 | 标签 | 触发条件 | 影响 Agent 派发 |
 |---|---|---|
-| ~~`VISION`~~ | 题目有摄像头 / 图像识别 | **不在本 skill 范围** — 外派给 `auto-vison` skill |
+| ~~`VISION`~~ | 题目有摄像头 / 图像识别 | **不在本 skill 范围** — 外派给 `auto-vision` skill |
 | `RF` | 题目有载波 / 调制 / 射频 | + [MATLAB] 重点跑 Communications Toolbox |
 | `STORAGE` | 题目要求 SD/Flash 存数据 | [DRV] 加文件系统模块 |
 | `CLI` | 题目要求串口命令交互 | [ALG] 加 CLI 框架 |
@@ -108,10 +128,10 @@ Step 5：进 §2 派 Agent（按 MAIN + TAGS 叠加）
 | "测量 / 分析仪 / 计 / 检测器" | METER | FFT |
 | "调制 / 解调 / 识别（AM/FM/PSK 等）" | MODEM | RF |
 | "稳定 / 跟踪 / 追踪 / 平衡 / 倒立" | CONTROL | MOTOR / IMU |
-| "小车 / 机器人 / 无人机 / 飞行器" | CONTROL | MOTOR / IMU（视觉部分外派 auto-vison）|
+| "小车 / 机器人 / 无人机 / 飞行器" | CONTROL | MOTOR / IMU（视觉部分外派 auto-vision）|
 | "采集 / 记录 / 数据存储 / 日志" | SYSTEM | STORAGE / CLI / LOG |
 | "DC-DC / AC-DC / 放大器 / 滤波器（硬件电路）" | POWER | — |
-| "摄像头 / 图像 / 视觉" | — | **外派 `auto-vison` skill**（不在本 skill 范围）|
+| "摄像头 / 图像 / 视觉" | — | **外派 `auto-vision` skill**（不在本 skill 范围）|
 | "TF 卡 / SD 卡 / Flash 存储" | — | + STORAGE |
 | "串口命令 / CLI / 控制台" | — | + CLI |
 | "OLED / LCD / 显示屏" | — | + OLED |
@@ -204,7 +224,7 @@ tag_weights:
 
 不再"题型→Agent"一对多硬绑，改成**角色池**按 MAIN + TAGS 叠加选择。**v2.1 升级**：派发后还需检查 TAG percentage 权重（见 §1.7），权重 ≥ 10% 的 TAG 必派对应 Agent。
 
-### 2.1 角色池（7 个 Agent，按 MAIN 给"必选/可选/禁用"标签）
+### 2.1 角色池（6 个 Agent：ARCH / DRV / ALG / QA / REPORT / MATLAB，按 MAIN 给"必选/可选/禁用"标签；下表表头 SIGNAL…X 为 7 类 MAIN 题型列，非 Agent）
 
 | Agent | SIGNAL | METER | MODEM | CONTROL | SYSTEM | POWER | X |
 |---|---|---|---|---|---|---|---|
@@ -215,7 +235,7 @@ tag_weights:
 | `[REPORT]` 报告答辩 | ✓ 必 | ✓ 必 | ✓ 必 | ✓ 必 | ✓ 必 | ✓ 必 | ✓ 必 |
 | `[MATLAB]` 算法仿真 | ✓ 必 | ✓ 必 | ✓ 必 | ✓ 必 | ⚠ 看 TAGS | ✓ 必 | 默认必选 |
 
-> **视觉相关 Agent 不在本 skill 范围**。需要视觉的题目（含摄像头、赛道识别、目标追踪、SLAM 等）由独立 `auto-vison` skill 承担，通过 Skill Handoff Contract 调用。
+> **视觉相关 Agent 不在本 skill 范围**。需要视觉的题目（含摄像头、赛道识别、目标追踪、SLAM 等）由独立 `auto-vision` skill 承担，通过 Skill Handoff Contract 调用。
 
 ### 2.2 TAGS 对角色池 + CP-3 验收的修订规则（v2.2 扩展）
 
@@ -293,7 +313,7 @@ tag_weights:
 | 2011F | 风力摆系统 | 多自由度控制 | 主线 4 + 5 LQR | + [MATLAB] 重 |
 | 2019A | 电动小车动态行驶 | 电机 + 编码器 + 电磁循迹（无视觉）| 主线 4 + pid-tune | [MATLAB] |
 
-> 含视觉的控制题（如 2017B/2023E/2024H 等需要摄像头识别）：视觉部分外派给 `auto-vison` skill；本 skill 负责控制律 / 电机驱动 / 状态机 / 通信。
+> 含视觉的控制题（如 2017B/2023E/2024H 等需要摄像头识别）：视觉部分外派给 `auto-vision` skill；本 skill 负责控制律 / 电机驱动 / 状态机 / 通信。
 
 ### 5.2 信号源类（题型 A）
 
@@ -383,7 +403,7 @@ def archs_first_step(题目原文):
 | 把"控制 + 测量"题判成 B 仪表 | 题型 D 主 + B 次 | 漏掉 PID/LQR 设计 |
 | 把"信号源 + 失真度自检" 判成 A | A 主 + B 次 | 没准备测量算法 |
 | 把"工业题 + 算法处理" 判成 E | E + 弱 D 算法 | 误以为不用 MATLAB |
-| 把"含摄像头的控制题"完全本 skill 接手 | D + 视觉子题型 | 视觉部分必须外派 `auto-vison` skill |
+| 把"含摄像头的控制题"完全本 skill 接手 | D + 视觉子题型 | 视觉部分必须外派 `auto-vision` skill |
 | 把"无人机题"判成 D | D + 飞行器子类 | 缺姿态控制专项参考 |
 
 **纠正方法**：第 0 步输出题型判定后，让 **[QA] Agent 旁听**，对比题目原文 + 路由表挑战 [ARCH] 的判断。
@@ -405,7 +425,7 @@ def archs_first_step(题目原文):
   ├── refs/example-siemens-cimc-2025.md     # 题型 E 实战
   ├── refs/matlab-example-*.md              # 各场景实战
   └── refs/lqr-example-*.md                 # 控制实战
-  # 注：视觉相关由独立 `auto-vison` skill 承担，不在本目录
+  # 注：视觉相关由独立 `auto-vision` skill 承担，不在本目录
 ```
 
 **禁止**：跳过 task-router 直接进 CP-1。这会导致后续 Agent 没有题型上下文，输出散乱。

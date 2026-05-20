@@ -4,7 +4,7 @@
 >
 > **核心差异化**：主线工具箱按"算法门类"组织（滤波 / 控制 / 辨识 ...），本竞赛专题按"赛题门类"组织（信号源 / 调制解调 / 仪表 ...），并且每场景配一段"历年赛题对应"指明能解哪些题。
 >
-> **范围说明**：E4（视觉处理）已剥离至独立 `auto-vison` skill。本 mode 只覆盖控制 / 计算类竞赛题，含摄像头 / 赛道识别 / 目标追踪的题目由 `auto-vison` skill 承担。
+> **范围说明**：E4（视觉处理）已剥离至独立 `auto-vision` skill。本 mode 只覆盖控制 / 计算类竞赛题，含摄像头 / 赛道识别 / 目标追踪的题目由 `auto-vision` skill 承担。
 
 ---
 
@@ -40,7 +40,7 @@
 │    → E3：测量仪表
 │
 ├── 含摄像头 / 视觉处理
-│    → 调用独立 `auto-vison` skill（不在本 mode）
+│    → 调用独立 `auto-vision` skill（不在本 mode）
 │
 ├── 信号里混进了未知噪声 / 干扰，要"学着"滤掉
 │    → E5：自适应滤波（LMS / RLS）
@@ -491,9 +491,9 @@ void measure(float *samples, float *f_est, float *thd_db) {
 
 ## 5. 场景 E4：视觉处理 → 已迁出
 
-视觉相关算法（摄像头标定 / 鱼眼校正 / 二值化 / 透视变换 / 中线提取 / 目标检测 / 模型部署到 KPU / NPU）由独立 **`auto-vison` skill** 承担。
+视觉相关算法（摄像头标定 / 鱼眼校正 / 二值化 / 透视变换 / 中线提取 / 目标检测 / 模型部署到 KPU / NPU）由独立 **`auto-vision` skill** 承担。
 
-调用方式：embedded-arch 在 CP-1.5 通过 Skill Handoff Contract（详见 `refs/contracts.md`）派给 auto-vison skill，其产物（`.h` / `.kmodel` / `.rknn`）由 embedded-alg 在 CP-2 消费。
+调用方式：embedded-arch 在 CP-1.5 通过 Skill Handoff Contract（详见 `refs/contracts.md`）派给 auto-vision skill，其产物（`.h` / `.kmodel` / `.rknn`）由 embedded-alg 在 CP-2 消费。
 
 本 skill 仅做控制、计算、底层驱动。
 

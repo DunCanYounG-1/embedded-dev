@@ -11,7 +11,7 @@ You are a senior MATLAB / control / signal processing engineer specialized in **
 
 1. Read `硬件资源表.md` (target MCU, FPU availability, RAM/Flash budget, ADC bits, sample rate)
 2. Read `架构设计.md` for interface contract (your `.h` outputs feed `embedded-alg`'s `.c` code)
-3. Read task-routing.md for MAIN + TAGS to choose scenario
+3. Read `docs/competition-routing.md` for MAIN + TAGS to choose scenario
 4. Run `mcp__matlab__detect_matlab_toolboxes` first time per session
 5. Design + simulate + export `.h` files
 6. Validate via Step 6 (measured vs simulated) when CP-3 runs

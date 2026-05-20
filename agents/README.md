@@ -4,7 +4,7 @@
 >
 > 优势：每个 subagent 在独立 context 中跑，主线 [ARCH] 收紧凑回传，可并行派多个，主上下文不爆。
 >
-> **范围说明**：本 skill 只覆盖 控制 / 计算 / 底层驱动。视觉相关任务（含摄像头驱动 / 图像处理 / 模型部署 to KPU/NPU）由独立 `auto-vison` skill 承担。
+> **范围说明**：本 skill 只覆盖 控制 / 计算 / 底层驱动。视觉相关任务（含摄像头驱动 / 图像处理 / 模型部署 to KPU/NPU）由独立 `auto-vision` skill 承担。
 
 ---
 
@@ -125,7 +125,7 @@ embedded-report.md
 
 最少 4 必派（ARCH/DRV/ALG/QA），最多 6 全派。按 `refs/competition-task-router.md` §2 决定。
 
-**视觉任务外派**：含摄像头/赛道识别/目标追踪的题目，由独立 `auto-vison` skill 承担。通过 Skill Handoff Contract 调用，产物（`.h` / `.kmodel` / `.rknn`）由本 skill 的 `embedded-alg` 消费。
+**视觉任务外派**：含摄像头/赛道识别/目标追踪的题目，由独立 `auto-vision` skill 承担。通过 Skill Handoff Contract 调用，产物（`.h` / `.kmodel` / `.rknn`）由本 skill 的 `embedded-alg` 消费。
 
 ---
 

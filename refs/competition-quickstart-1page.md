@@ -18,7 +18,7 @@
 **一句话工作流**：
 > 拿到题 → router 落 MAIN + TAGS → checklist 出 100 分追踪表 → 派 4-6 Agent → 6 阶段 CP-0~CP-5 → 完赛
 >
-> 含视觉的题目（摄像头/赛道识别/目标追踪）：视觉部分外派给独立 `auto-vison` skill。
+> 含视觉的题目（摄像头/赛道识别/目标追踪）：视觉部分外派给独立 `auto-vision` skill。
 
 ---
 
@@ -104,7 +104,7 @@ CP-5  (1h)     答辩演练（10 个 why）→ v1.1-rehearsed   ← 上场前
 | `[REPORT]` | 报告 + 答辩 why-evidence | **任何题** |
 | `[MATLAB]` | 算法仿真 + .h 导出 | MAIN ≠ SYSTEM（或 SYSTEM 含 FFT/RF 标签）|
 
-> 视觉相关任务（摄像头驱动 / 二值化 / 透视变换 / 模型部署）外派给独立 `auto-vison` skill，不在本 skill 角色池。
+> 视觉相关任务（摄像头驱动 / 二值化 / 透视变换 / 模型部署）外派给独立 `auto-vision` skill，不在本 skill 角色池。
 
 ---
 
@@ -122,7 +122,7 @@ CP-5  (1h)     答辩演练（10 个 why）→ v1.1-rehearsed   ← 上场前
 | POWER | `modes/matlab-toolkit-competition.md` §7 E6 | —（电源题以 PCB 为主）|
 
 含 CLI/STORAGE/LOG TAGS：加读 `refs/cli-command-framework.md`
-含视觉（摄像头/赛道识别等）：调用独立 `auto-vison` skill
+含视觉（摄像头/赛道识别等）：调用独立 `auto-vision` skill
 
 ---
 

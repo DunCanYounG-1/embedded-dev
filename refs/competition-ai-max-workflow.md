@@ -50,7 +50,7 @@
 
 **编制**：6 个 subagent（ARCH/DRV/ALG/QA/MATLAB/REPORT），无第 7 个。
 Simscape 电路仿真属于 `embedded-matlab` 的能力之一（场景 E6），不单独成 Agent。
-**视觉处理**由独立 `auto-vison` skill 承担，通过 Skill Handoff Contract 调用（产物：`.h` / `.kmodel` / `.rknn` 等供本 skill ALG 消费）。
+**视觉处理**由独立 `auto-vision` skill 承担，通过 Skill Handoff Contract 调用（产物：`.h` / `.kmodel` / `.rknn` 等供本 skill ALG 消费）。
 
 **派发方式**：每个 Agent 独立 context、独立写 `编辑清单_<ROLE>.md`（大写枚举：DRV/ALG/QA/MATLAB/REPORT），ARCH 在 CP-2 末尾合并到主 `编辑清单.md`。完整契约见 `agents/README.md` + `refs/contracts.md`。
 
@@ -213,7 +213,7 @@ v2 升级（核心强化）：
 
 - **优先 subagent_type="embedded-*"**（VoltAgent 风格，已装在 `~/.claude/agents/`，见 `agents/README.md` §安装方式）
 - 仅在 subagent 未注册时回退 `general-purpose` + 内嵌 prompt（不推荐 — 回退后 Outcome/Ticket 规约可能失效）
-- 派发分两批：CP-1.5 派仿真组（MATLAB；视觉题另派 `auto-vison` skill）；CP-2 派实现组（DRV + ALG + REPORT）；**绝不**在 CP-1.5 完成前派 ALG
+- 派发分两批：CP-1.5 派仿真组（MATLAB；视觉题另派 `auto-vision` skill）；CP-2 派实现组（DRV + ALG + REPORT）；**绝不**在 CP-1.5 完成前派 ALG
 - 同一批的所有 subagent 必须**在同一条消息**用并行 Task tool 发出
 
 ### 3.1 电赛仪表类题（如 2021A / 2022F / 2024B）
@@ -246,7 +246,7 @@ CP-1.5 派 1 个（MATLAB 含 LQR + Kalman），CP-2 派 3 个（DRV + ALG + REP
 
 ### 3.3 含视觉的题目
 
-视觉部分（标定 / 检测 / 跟踪 / 模型部署 to KPU/NPU）外包给独立 `auto-vison` skill。本 skill 在 CP-1.5 同时派 `auto-vison` 与 `embedded-matlab`，CP-2 由 `embedded-alg` 消费 vision skill 产出的 `.h` / `.kmodel` / `.rknn`。详见 `refs/contracts.md` Skill Handoff Contract。
+视觉部分（标定 / 检测 / 跟踪 / 模型部署 to KPU/NPU）外包给独立 `auto-vision` skill。本 skill 在 CP-1.5 同时派 `auto-vision` 与 `embedded-matlab`，CP-2 由 `embedded-alg` 消费 vision skill 产出的 `.h` / `.kmodel` / `.rknn`。详见 `refs/contracts.md` Skill Handoff Contract。
 
 ---
 
@@ -538,7 +538,7 @@ Task(subagent_type="embedded-report",
 | 能不能做 | 答案 |
 |---|---|
 | AI 100% 完赛？ | ❌ 不行。硬件焊接、临场调试、答辩仍是人的事 |
-| 所有题型适用？ | ⚠️ 主流类型（信号 / 控制 / 电磁 / 工业系统集成）OK；视觉题由 `auto-vison` skill 承担；冷门题型可能没现成场景 |
+| 所有题型适用？ | ⚠️ 主流类型（信号 / 控制 / 电磁 / 工业系统集成）OK；视觉题由 `auto-vision` skill 承担；冷门题型可能没现成场景 |
 | 第一次用就能 3-5× 加速？ | ⚠️ 不行。学习曲线 10-20 小时，赛前必须先练 |
 | 离线场景能用？ | ✅ 本 skill 全套离线可用；grok-search 失效但不影响主流程 |
 | 不会编程能用？ | ❌ 至少要会读 C 代码 + 能调试硬件 |
@@ -557,4 +557,4 @@ Task(subagent_type="embedded-report",
 - **统一约定**：`refs/contracts.md`（Project Profile / Command Outcome）
 - **入门示例**：`refs/matlab-example-*.md`、`refs/lqr-example-*.md`
 - **首跑**：`refs/matlab-hello-5min.md`
-- **视觉题**：由独立 `auto-vison` skill 承担（含 STM32+OV7725 / K230+MaxCAM / RK3588 三层硬件）
+- **视觉题**：由独立 `auto-vision` skill 承担（含 STM32+OV7725 / K230+MaxCAM / RK3588 三层硬件）

@@ -194,7 +194,7 @@ NO IMPLEMENTATION LIST WITHOUT FILE PATHS + VERIFY CRITERIA + REVIEW MARKERS + L
 **调用规范**：
 1. 在轮次声明里标注"本轮将调用 `<skill 名>` 执行 `<动作词>`"，动作词使用 `refs/contracts.md` 的统一动词（detect / build / flash / attach / monitor / reset / verify）
 2. skill 返回 `Command Outcome` 后，将 `status` / `evidence` / `next_action` 写入 `编辑清单.md` 本轮记录
-3. `status != success` 时，按 `refs/failure-taxonomy.md` 的 7 类标准化失败分类决定下一步：
+3. `status != success` 时，按 `refs/failure-taxonomy.md` 的 8 类标准化失败分类决定下一步：
    - `environment-missing` → 修复缺失依赖后重试，禁止跳过
    - `project-config-error` → 回 PLAN 修配置
    - `connection-failure` / `permission-problem` → 阻塞，向用户索取硬件 / 权限确认
@@ -256,7 +256,7 @@ NO COMPLETION CLAIMS WITHOUT FRESH EVIDENCE IN THIS MESSAGE
 - 改动跨越超过 5 个文件却没有回 PLAN 重新拆轮次
 - 应用层 `.c` 文件出现 `#include "stm32f4xx_hal.h"` / `"gd32f4xx.h"` 等
 - `main.c` 修改超过 10 行连续业务逻辑
-- 子任务 `status != success` 但你没有用 `refs/failure-taxonomy.md` 的 7 类标准分类
+- 子任务 `status != success` 但你没有用 `refs/failure-taxonomy.md` 的 8 类标准分类
 - 兄弟 skill 返回 `Command Outcome` 后，证据没写入 `编辑清单.md`
 - 用"我已经写好了测试，应该会通过"替代实际跑测试
 
@@ -365,7 +365,7 @@ NO COMPLETION CLAIMS WITHOUT FRESH EVIDENCE IN THIS MESSAGE
 [未验证] 实现与最终计划存在偏差：[描述]。待验证项：[列出]
 ```
 
-**失败分类标准化**：当输出 `[未验证]` 或子任务 `status != success` 时，必须用 `refs/failure-taxonomy.md` 的 7 类标准分类标注偏差类别（`environment-missing` / `project-config-error` / `connection-failure` / `artifact-missing` / `target-response-abnormal` / `permission-problem` / `ambiguous-context`），并按该文件的"响应要求"给出最小修复动作；禁止用"应该""可能""差不多"等模糊词代替分类。
+**失败分类标准化**：当输出 `[未验证]` 或子任务 `status != success` 时，必须用 `refs/failure-taxonomy.md` 的 8 类标准分类标注偏差类别（`environment-missing` / `project-config-error` / `connection-failure` / `artifact-missing` / `target-response-abnormal` / `permission-problem` / `ambiguous-context` / `realtime-violation`），并按该文件的"响应要求"给出最小修复动作；禁止用"应该""可能""差不多"等模糊词代替分类。
 
 **偏差处理**：发现偏差后，架构/逻辑级偏差 → 返回 PLAN 重新出实施清单；纯实现细节偏差 → 返回 EXECUTE 修正对应步骤。
 

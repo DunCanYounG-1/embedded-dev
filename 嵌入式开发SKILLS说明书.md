@@ -325,13 +325,15 @@ by [DuncanY](https://github.com/DunCanYounG-1)
 
 ## 8. Git 快照与回档机制
 
-协议要求在 EXECUTE 阶段每完成一个实施项并得到确认后自动存档：
+协议要求在 EXECUTE 阶段每完成一个实施项并得到用户确认后，做**本地**存档（**绝不自动 push**，**不用 `git add -A`**，按 PLAN 清单显式 `git add <file>...`）：
 
 ```bash
-git add -A
+git add <本步骤涉及的具体文件>
 git commit -m "[AUTO-SNAPSHOT] 步骤N: <任务摘要>"
-git push
+# 不自动 push；推送由用户显式发起
 ```
+
+> 完整硬规则（敏感文件预检、不用 `git add -A`、绝不自动 push）见 `refs/git-snapshot.md` 与 `SKILL.md` Git 备份与回档规则。
 
 回档规则：
 
@@ -428,15 +430,17 @@ git push
 - 蓝桥杯嵌入式
 - 竞速开发、多人分工
 
-特点：
+特点（v2 当前版本）：
 
-- 定义 `[ARCH] / [DRV] / [ALG] / [QA]` 四角色
-- 强制 Git 阶段检查点 `CP-0` 到 `CP-4`
-- 阶段一先冻结引脚、DMA、中断优先级和接口契约
-- 阶段二允许 DRV 与 ALG 并行开发
-- 阶段三 QA 以嵌入式专项清单做强审查
-- 阶段四由 ARCH 集成主循环、调试宏、时间片任务
+- 定义 6 个独立 subagent：`[ARCH] / [MATLAB] / [DRV] / [ALG] / [QA] / [REPORT]`
+- 强制 Git 阶段检查点 `CP-0` 到 `CP-5`（含 CP-0a/0b、CP-1.5 仿真门）
+- CP-1 先冻结引脚、DMA、中断优先级和接口契约
+- CP-1.5 由 MATLAB 做仿真验证（控制/算法题）
+- CP-2 允许 DRV 与 ALG（+REPORT）并行开发
+- CP-3 QA 以嵌入式专项清单做强审查（含 MIL/SIL/PIL）
+- CP-4 由 ARCH 集成主循环、调试宏、时间片任务，CP-5 答辩演练
 - 强调“故障即安全”“看门狗必启”“零 TODO”“零裸轮询”
+- 视觉题由独立 `auto-vision` skill 承担
 
 这是一个替代型模式，会替换标准 RIPER-5 的阶段流程，但基础规范仍生效。
 
@@ -664,7 +668,7 @@ MCP 工具健康检查模式，触发词：`检查工具` / `mcp检查` / `healt
 启用比赛模式，做一个平衡车控制系统
 ```
 
-它会进入四角色并行式流程，先冻结硬件资源与接口，再让驱动和算法分角色推进。
+它会进入 6-agent 并行式流程，先冻结硬件资源与接口，再让驱动和算法分角色推进。
 
 ### 13.6 工具检查
 

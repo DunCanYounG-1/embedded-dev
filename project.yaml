@@ -1,0 +1,9 @@
+name: embedded-dev
+authors: [晚夏三更]
+category: Agent
+tags: [嵌入式, RIPER-5, STM32, GD32, MSPM0, 电赛, MATLAB, 多Agent]
+status: in-progress
+updated: 2026-05-20
+summary: RIPER-5 嵌入式芯片开发协议 skill，覆盖研究/创新/计划/执行/审查五阶段，含多 Agent 比赛模式、四文件磁盘记忆与分层架构门禁
+
+readme: README.md

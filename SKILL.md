@@ -224,28 +224,28 @@ hooks:
     - matcher: "startup|clear|compact"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" session-start.py"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" session-start.py"
           async: false
   UserPromptSubmit:
     - hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" check-memory-files"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" check-memory-files"
   PreToolUse:
     - matcher: "Write|Edit|MultiEdit"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" pre-write-check.py"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" pre-write-check.py"
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" inject-context"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" inject-context"
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" inject-context"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" inject-context"
   PostToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" remind-update"
+          command: "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}/hooks/run-hook.cmd\" remind-update"
 ---
 <!-- Hooks 设计：4 个事件（SessionStart / UserPromptSubmit / PreToolUse / PostToolUse）通过 hooks/run-hook.cmd polyglot 分流。Write/Edit/MultiEdit 现有两层 hook：pre-write-check.py 做**写入前 best-effort 预拦截**（命中明显分层违规即 exit 2 阻断，解析失败/非写工具 fail-open 放行），inject-context 注入上下文。Bash 仅注入上下文。**唯一硬门禁是 REVIEW/CP 阶段的 `scripts/arch-check.sh` + `tools/include-graph.py` + CP gate**，pre-write-check 只提前快速拦截、不替代它们。路径用 ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/embedded-dev}。详见 refs/hooks-design.md。 -->
 
@@ -340,7 +340,7 @@ hooks:
 ### 环境自检（首次收到用户消息后执行一次）
 当你**收到本会话首个用户消息后**，在 RESEARCH 阶段首条响应里通过 Bash 工具跑一次：
 ```bash
-test -f /dev/null && echo "[embedded-dev] hooks env: ok" \
+test -e /dev/null && echo "[embedded-dev] hooks env: ok" \
                   || echo "[embedded-dev] hooks env: degraded"
 ```
 - 输出 `ok`：hooks 可用，按协议运行

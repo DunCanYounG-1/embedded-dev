@@ -1,106 +1,58 @@
-: << 'CMDBLOCK'
-@echo off
-REM Cross-platform polyglot hook wrapper for embedded-dev skill.
-REM
-REM Dispatch rules:
-REM   <name>.py   → run with python3 / python (Trellis-style robust hooks)
-REM   <name>      → run with bash (Git Bash on Windows, native bash elsewhere)
-REM
-REM Failure mode: silently exit 0 (hooks fail open — they're enhancements,
-REM not blockers; the protocol is still enforced by Claude itself).
-REM
-REM Hook scripts use extensionless filenames for bash scripts (e.g.
-REM "check-memory-files" not "check-memory-files.sh") so Claude Code's
-REM Windows auto-detection — which prepends "bash" to commands containing
-REM .sh — doesn't double-wrap them.
-REM
-REM Usage: run-hook.cmd <script-name> [args...]
-REM   e.g. run-hook.cmd session-start.py
-REM        run-hook.cmd check-memory-files
+#!/usr/bin/env bash
+# Hook dispatcher for the embedded-dev skill.
+#
+# Always invoked as:  bash "<path>/run-hook.cmd" <script-name> [args...]
+# settings.json and SKILL.md frontmatter prefix every hook command with `bash`,
+# so this file is executed BY bash regardless of the host shell — cmd.exe,
+# PowerShell and bash all end up running `bash run-hook.cmd ...`. The file is
+# therefore a plain bash script (kept under the .cmd name only because existing
+# configs reference that path). It is intentionally NOT a cmd/bash polyglot:
+# the file is LF-locked via .gitattributes (required for bash), and LF-only
+# .cmd files cannot be executed reliably by cmd.exe anyway (goto/label parsing
+# breaks and an interactive prompt can hang the hook).
+#
+# Dispatch by script extension:
+#   <name>.py  -> python / python3  (probe for a REAL interpreter first; the
+#                 Windows Store ships a python3 stub that exits 0 with no
+#                 output and is useless for headless hooks)
+#   <name>     -> bash              (Git Bash on Windows, native bash elsewhere)
+#
+# Fail-open contract: every exit path returns 0. Hooks are enhancements, not
+# blockers — the protocol is still enforced by Claude itself. The only
+# exception is the script the dispatcher exec's into (e.g. pre-write-check.py),
+# which owns its own exit code.
 
-if "%~1"=="" (
-    REM Missing script name — fail open (don't block protocol) but emit a
-    REM diagnostic to stderr so misconfigurations are visible in logs.
-    echo run-hook.cmd: missing script name >&2
-    exit /b 0
-)
+set +e  # never abort on error — fail open
 
-set "HOOK_DIR=%~dp0"
-set "SCRIPT_NAME=%~1"
-
-REM === Python dispatch (script ends in .py) ===
-REM Try real Python interpreters. Windows Store may install a `python3` stub
-REM in WindowsApps that returns exit 0 with no output and prompts the user to
-REM install from Store — useless for headless hooks. Probe with --version first
-REM and require non-empty output to confirm a real interpreter.
-if /I "%~x1"==".py" (
-    REM Try 'python' first (most common on Windows)
-    for /f "delims=" %%V in ('python -c "import sys; print(sys.version_info[0])" 2^>nul') do (
-        if "%%V"=="3" (
-            python "%HOOK_DIR%%SCRIPT_NAME%" %2 %3 %4 %5 %6 %7 %8 %9
-            exit /b %ERRORLEVEL%
-        )
-    )
-    REM Try 'python3' (Linux/macOS standard, may exist on Windows too)
-    for /f "delims=" %%V in ('python3 -c "import sys; print(sys.version_info[0])" 2^>nul') do (
-        if "%%V"=="3" (
-            python3 "%HOOK_DIR%%SCRIPT_NAME%" %2 %3 %4 %5 %6 %7 %8 %9
-            exit /b %ERRORLEVEL%
-        )
-    )
-    REM No real Python available — fail open
-    exit /b 0
-)
-
-REM === Bash dispatch (extensionless scripts) ===
-if exist "C:\Program Files\Git\bin\bash.exe" (
-    "C:\Program Files\Git\bin\bash.exe" "%HOOK_DIR%%SCRIPT_NAME%" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
-)
-if exist "C:\Program Files (x86)\Git\bin\bash.exe" (
-    "C:\Program Files (x86)\Git\bin\bash.exe" "%HOOK_DIR%%SCRIPT_NAME%" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
-)
-where bash >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    bash "%HOOK_DIR%%SCRIPT_NAME%" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
-)
-
-REM No bash found either — fail open
-exit /b 0
-CMDBLOCK
-
-# Unix path: dispatch by extension
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 SCRIPT_NAME="$1"
+
+if [ -z "$SCRIPT_NAME" ]; then
+    # Missing script name — emit a diagnostic for logs but do not block.
+    echo "run-hook.cmd: missing script name" >&2
+    exit 0
+fi
 shift
 
 case "$SCRIPT_NAME" in
     *.py)
-        # Python script — probe for a REAL interpreter. Windows Store may
-        # install a python3 stub that exits 0 with no output, so we verify
-        # version output is non-empty before trusting the binary.
-        # Try 'python' first (most common on Windows, also works on Linux).
-        if python -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
-            exec python "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
+        # Python script. Verify it exists first — exec'ing python on a missing
+        # file exits non-zero, and a non-zero PreToolUse hook BLOCKS the tool
+        # call. Fail open instead.
+        [ -f "${SCRIPT_DIR}/${SCRIPT_NAME}" ] || exit 0      # missing — fail open
+        # Probe for a real Python 3 — 'python' first (most common on Windows,
+        # also works on Linux), then 'python3'.
+        if python  -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+            exec python  "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
         elif python3 -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
             exec python3 "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
-        else
-            # No real Python — fail open
-            exit 0
         fi
+        exit 0  # no real Python — fail open
         ;;
     *)
-        # Bash script — verify the file exists first; fail open if missing
-        if [ ! -f "${SCRIPT_DIR}/${SCRIPT_NAME}" ]; then
-            exit 0
-        fi
-        if command -v bash >/dev/null 2>&1; then
-            exec bash "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
-        else
-            # No bash — fail open
-            exit 0
-        fi
+        # Bash script (extensionless). Verify it exists, then run it.
+        [ -f "${SCRIPT_DIR}/${SCRIPT_NAME}" ] || exit 0      # missing — fail open
+        command -v bash >/dev/null 2>&1 || exit 0            # no bash — fail open
+        exec bash "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
         ;;
 esac

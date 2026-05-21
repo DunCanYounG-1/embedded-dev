@@ -599,6 +599,8 @@ void lms_process(float *ref, float *desired, float *cleaned) {
 ## 7. 场景 E6：Simscape Electrical 电路仿真（"先 PC 仿真再做硬件"）
 
 > 适用模电 / 电源类题。**不直接生成 MCU 代码**，但能在硬件焊之前验证拓扑、参数、稳定性。
+>
+> **与外部 skill `multisim-spice` 的边界**：本场景 E6 面向系统级 / 控制链路 / 与 MATLAB 数据处理耦合的电路（需 Simscape 授权）。若只需纯电路级正确性验证（SPICE 网表 / 小信号 / 频响 / 瞬态 / 元件值），或要在 NI Multisim 出原理图，且无 MATLAB 授权，改走 `multisim-spice`（内置 ngspice，仅 Windows）。
 
 ### A. 你需要准备什么
 

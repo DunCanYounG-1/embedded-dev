@@ -486,6 +486,7 @@ test -e /dev/null && echo "[embedded-dev] hooks env: ok" \
 | `题型识别` / `赛题路由` / `题型路由` / `评分点提取` / `验收表` / `100 分追踪表` / `acceptance test` | **元层路由器**：任何竞赛题第 0 步必读。标签化路由（MAIN + TAGS）+ 角色池 Agent 派发 + 阶段跳过矩阵 + 5 元组验收表 + 答辩 why-evidence + 临场变更单 | `refs/competition-task-router.md` + `refs/competition-scoring-checklist-template.md` |
 | `quickstart` / `快速开始` / `15 分钟入门` / `三人极简` / `Mini 模式` | **单页快速通道**：15 分钟从读题到派 Agent；只读 1 张表即可起步，省 4 小时学习曲线 | `refs/competition-quickstart-1page.md` |
 | `embedded-arch` / `embedded-drv` / `embedded-alg` / `embedded-qa` / `embedded-matlab` / `embedded-report` / `subagent` / `VoltAgent 风格` | **6 个独立 subagent**（已装 `~/.claude/agents/`）按 VoltAgent 标准格式，可用 `Task(subagent_type=embedded-xxx)` 直接派发；独立 context = 主线压力小 | `agents/README.md` + `agents/embedded-*.md` |
+| `电路` / `电路仿真` / `SPICE` / `网表生成` / `Multisim` / `运放/滤波/调理电路验证` | **模拟前端电路预验证**（外部辅助 skill，非 modes 文件）：自然语言→SPICE 网表→内置 ngspice 批处理自检→可选 NI Multisim 出原理图。**设计期（RESEARCH/INNOVATE）证据生成型，非 EXECUTE 执行器，不走 Command Outcome 契约**；仅 Windows，Multisim 可选（未装则保留 `.cir`+ngspice 数值即完成）；与 Simscape 边界——电路级正确性走它、系统级/控制链路走 Simscape；结果反哺 `研究发现.md`/`硬件资源表.md` | 外部 skill `multisim-spice`（`~/.claude/skills/multisim-spice`）+ `refs/riper5-stages.md` RESEARCH 步骤 10 |
 调用规则：
 1. **立即读取**对应的 `modes/` 文件
 2. 按该文件的流程执行任务，**不中断当前 RIPER-5 阶段**

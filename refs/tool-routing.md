@@ -20,6 +20,7 @@
 | 故障快速诊断 | 离线参考 | `refs/troubleshooting.md` |
 | 硬件实时调试 | Embedded Debugger MCP | 仅硬件联调时可用 |
 | **数学计算 / 仿真 / 控制器设计 / 滤波器设计 / FFT / 系统辨识 / 定点化** | `mcp__matlab__*` 工具组 + `modes/matlab-embedded-toolkit.md` | 8 大场景 |
+| **模拟前端电路预验证**（写固件前验证 ADC 抗混叠/运放增益/传感器调理/RC 滤波等模拟电路假设） | 外部辅助 skill `/multisim-spice`（自然语言→SPICE 网表→内置 ngspice 自检→可选 Multisim） | **设计期证据生成，非 EXECUTE 执行器，不走 Command Outcome 契约**；仅 Windows，Multisim 可选；电路级正确性走它、系统级/控制链路走 Simscape；详见 `refs/riper5-stages.md` RESEARCH 步骤 10 |
 
 ### 1.2 执行层（操作真实命令）
 

@@ -655,3 +655,7 @@ MCP 工具健康检查模式，触发词：`检查工具` / `mcp检查` / `healt
 
 `embedded-dev` 本质上是一个面向嵌入式开发的“工程执行协议 + 专项知识库 + 长任务治理框架”。  
 它最适合用在需要真实落地、可验证、可回退、可交接的 MCU/固件任务中，而不是只追求一次性生成代码。
+
+感谢 LinuxDo 社区的支持！
+
+[![LinuxDo](https://img.shields.io/badge/LinuxDo-社区支持-blue)](https://linux.do/)

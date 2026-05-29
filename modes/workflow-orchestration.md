@@ -167,7 +167,7 @@ routing: {
 
 ## 4. 通用长任务（非比赛）：Scout → Builder → Verifier 接 Workflow
 
-`refs/vibe-workflow.md` 的三角色同样能确定性化。轻量场景直接内联脚本即可（不必落文件）：
+`refs/vibe-workflow.md` 的三角色同样能确定性化。**已抽成独立可运行脚本 `tools/vibe-workflow.js`**（参数化 `goal`/`builder_agent`/`scout_agent`，带 blocked-return 与 null 守卫）——直接 `Workflow({ scriptPath:"...\\tools\\vibe-workflow.js", args:{ goal:"<本轮目标>" } })` 即可。下面是其核心骨架（仅说明用）：
 
 ```js
 export const meta = {
@@ -215,6 +215,8 @@ return { scout, build, verify }
 ## 6. 关联资源
 
 - **确定性脚本（本模式核心产物）**：`tools/competition-workflow.js`
+- **比赛脚本离线自测**：`tools/competition-workflow.test.js`（`node tools/competition-workflow.test.js` 跑一遍，mock 掉所有 agent，验证 CP 门禁 / 重试预算 / 回派环 / low 不阻断 / pipeline / budget 等 12 个控制流场景；不联网不烧 token）
+- **通用长任务脚本**：`tools/vibe-workflow.js`（Scout→Builder→Verifier）
 - **比赛模式主流程**：`modes/competition.md`
 - **6 Agent prompt 模板 / 自动决策门**：`refs/competition-ai-max-workflow.md`
 - **Command Outcome / Defect Ticket / 预算公式 / 状态机**：`refs/contracts.md`

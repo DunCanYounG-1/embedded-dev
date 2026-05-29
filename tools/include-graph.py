@@ -127,6 +127,9 @@ CATCH_ALL_PATTERNS = [
     re.compile(r"^project\.h$", re.IGNORECASE),
 ]
 
+# 逐飞开源库标准 mega-header — 白名单放行（与 pre-write-check.py 同步）
+CATCH_ALL_WHITELIST = {"zf_common_headfile.h"}
+
 # 仅跳过构建产物 / git / 编辑器临时（不再跳 libraries/）
 SKIP_DIRS = {"build", ".git", "node_modules", "__pycache__", ".vscode", ".idea",
              "Debug", "Release", "out"}
@@ -138,6 +141,8 @@ INCLUDE_RE = re.compile(r'#\s*include\s+"([^"]+)"')
 def classify_file(path: str) -> float:
     """根据路径与文件名推断层级（basename 优先 → 路径片段次之）。"""
     norm = path.replace("\\", "/").lower()
+    # 修复：relpath 的顶层目录无前导斜杠（app/x.c），补一个，使 "/app/" 等片段对顶层目录也命中
+    nslash = "/" + norm.lstrip("/")
     basename_keep_case = os.path.basename(path)
     basename = os.path.basename(norm)
 
@@ -146,11 +151,11 @@ def classify_file(path: str) -> float:
         if pat.match(basename_keep_case) or pat.match(basename):
             return L_VENDOR
     for frag in VENDOR_PATH_FRAGMENTS:
-        if frag in norm:
+        if frag in nslash:
             return L_VENDOR
-    # Catch-all mega-header 视为 L0（间接拉厂商头）
+    # Catch-all mega-header 视为 L0（间接拉厂商头），白名单排除
     for pat in CATCH_ALL_PATTERNS:
-        if pat.match(basename):
+        if pat.match(basename) and basename not in CATCH_ALL_WHITELIST:
             return L_VENDOR
 
     # ===== L1a HAL adapter（特殊：允许 include L0）=====
@@ -178,28 +183,28 @@ def classify_file(path: str) -> float:
             return L_MID
 
     # ===== L0~L6 路径标记 =====
-    if "/vendor/" in norm or "/sdk/" in norm:
+    if "/vendor/" in nslash or "/sdk/" in nslash:
         return L_VENDOR
 
-    if "/hal/inc/" in norm or basename.startswith("hal_"):
+    if "/hal/inc/" in nslash or basename.startswith("hal_"):
         return L_HAL
 
-    if "/bsp/" in norm or basename.startswith("bsp_") or basename.startswith("board_"):
+    if "/bsp/" in nslash or basename.startswith("bsp_") or basename.startswith("board_"):
         return L_BSP
 
-    if "/drivers/" in norm or "/driver/" in norm or "/drv/" in norm \
+    if "/drivers/" in nslash or "/driver/" in nslash or "/drv/" in nslash \
             or basename.startswith("drv_"):
         return L_DRV
 
-    if "/middleware/" in norm or "/mid/" in norm or basename.startswith("mid_"):
+    if "/middleware/" in nslash or "/mid/" in nslash or basename.startswith("mid_"):
         return L_MID
 
-    if "/service/" in norm or "/services/" in norm or "/svc/" in norm \
+    if "/service/" in nslash or "/services/" in nslash or "/svc/" in nslash \
             or basename.startswith("svc_"):
         return L_SVC
 
-    if "/app/" in norm or "/application/" in norm \
-            or "/project/code/app/" in norm or "/code/app/" in norm \
+    if "/app/" in nslash or "/application/" in nslash \
+            or "/project/code/app/" in nslash or "/code/app/" in nslash \
             or basename.startswith("app_") or basename.endswith("_app.h") \
             or basename.endswith("_app.c"):
         return L_APP

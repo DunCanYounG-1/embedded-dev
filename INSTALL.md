@@ -48,6 +48,8 @@ git clone https://github.com/DunCanYounG-1/embedded-dev ~/.claude/skills/embedde
 
 **Windows 用户特别注意**：装 Git for Windows 时勾选"Git Bash Here"和"Add Git to PATH"。Claude Code 在 Windows 下的 hook command 默认通过 Git Bash 执行。
 
+> **注意（user-skill 安装的关键前提）**：装好 Python/Bash 只是 hook 能"跑"的前提；**user-skill 安装下 frontmatter hooks 还不会被 Claude Code 自动注册**，必须按 §8 用 `tools/register-hooks.py` 显式注册（或装成 plugin）。不注册则全部 hook 不生效、降级为 Claude 手动遵守协议。本表"缺了核心 hook 不工作"指的是**注册之后**缺 Python/Bash 的情形。
+
 ---
 
 ## 3. 推荐依赖（缺了关键功能降级，但能用）
@@ -156,14 +158,19 @@ EXECUTE 阶段的"操作执行层兄弟 skill 路由"表（见 `SKILL.md` 第 4 
 
 clone 完成 + 装好 Python + Git Bash（Windows）即可启动以下功能：
 
-✅ 立即可用：
+✅ 立即可用（纯协议/知识库，不依赖 hook）：
 - RIPER-5 五阶段协议（RESEARCH / INNOVATE / PLAN / EXECUTE / REVIEW 决策框架）
-- 四文件磁盘记忆（项目规划清单/编辑清单/硬件资源表/研究发现）
-- SessionStart hook 注入 6 条铁律
+- 四文件磁盘记忆（项目规划清单/编辑清单/硬件资源表/研究发现）— Claude 按协议手动维护
 - PLAN/EXECUTE 三件套（Iron Law + Red Flags + Rationalization Table）
 - 嵌入式分层架构规范（HAL/BSP/Driver/Middleware/Service/App）
 - 所有 `refs/*.md` 离线知识库（API 速查、引脚规划、IMU 检查、Mahony AHRS、故障排查等）
 - 6 个扩展模式：1 个替代型（`competition`，启用比赛模式后替代 RIPER-5 流程）+ 5 个辅助型（`datasheet-lookup` / `gd32-board` / `netlist-lookup` / `seekfree-lib` / `mcp-healthcheck`）
+
+⚠ 需先注册 hooks 才【自动】生效（**user-skill 安装默认不加载** frontmatter hooks，见 §8）：
+- SessionStart 引导注入（首条响应前读 SKILL.md + 环境自检 + 四文件检测）
+- PreToolUse `pre-write-check.py` 写前分层拦截（应用层 include 厂商头等违规即 exit 2 阻断）
+- UserPromptSubmit 四文件提醒 / PostToolUse 改后更新提醒
+- **不注册 = degraded**：以上自动化失效，但协议规则仍由 Claude 手动遵守，主流程不受影响
 
 ⚠ 装了对应兄弟 skill 后可用：
 - 真正执行编译/烧录/调试/串口/总线/分析等操作
@@ -179,3 +186,32 @@ clone 完成 + 装好 Python + Git Bash（Windows）即可启动以下功能：
 ## 7. 完全 minimal install（只用核心协议）
 
 如果你只想用本 skill 的"研究方法论 + 分层架构规范 + 引脚规划检查 + 反自欺协议"，**只需要装 Python + Git Bash（Windows）+ clone 本仓库**。其他全部可以不装。RESEARCH/INNOVATE/PLAN/REVIEW 四个阶段对外部依赖近乎为零；只有 EXECUTE 真正跑命令时才需要兄弟 skill。
+
+---
+
+## 8. 启用 hooks（user-skill 安装必读）★
+
+**关键事实**：作为 user-level skill（`~/.claude/skills/embedded-dev`）安装时，SKILL.md frontmatter 里声明的 hooks **不会被 Claude Code 自动加载**——只有作为 **plugin** 安装时 frontmatter hooks 才会自动注册（见 `refs/hooks-design.md §注册方式`）。因此 §6 标注的"⚠ 需先注册"那组（SessionStart 引导、`pre-write-check` 写前拦截、四文件提醒）在默认 user-skill 安装下**不会自动生效**。这是 user-skill 安装方式的限制，不是 bug。
+
+三种处理方式，任选其一：
+
+**A. 显式注册到 settings.json（想要机械护栏就选这个）**
+
+```bash
+# 看会注册什么（安全，不写盘）
+python ~/.claude/skills/embedded-dev/tools/register-hooks.py
+
+# 项目级（推荐）：只对当前工程生效，侵入性最小
+python ~/.claude/skills/embedded-dev/tools/register-hooks.py --write --target ./.claude/settings.json
+
+# 或全局：所有会话都加载（注意 SessionStart 会给【所有】项目注入嵌入式引导）
+python ~/.claude/skills/embedded-dev/tools/register-hooks.py --write
+```
+
+幂等（重复写不会重复）、自动备份 `.bak`、可 `--remove` 撤销。注册后**重启 Claude Code 会话**才生效。
+
+**B. 作为 plugin 安装** —— frontmatter hooks 自动注册，无需手动；Claude Code 自动设置 `CLAUDE_PLUGIN_ROOT`。
+
+**C. 接受 degraded 模式** —— 不注册也能用：协议主流程、四文件记忆、分层规范全部由 Claude 按规则手动遵守，只是失去 hook 的"机械提醒 + 写前预拦截"。此时**唯一的机械门禁**是 REVIEW/CP 阶段主动跑 `scripts/arch-check.sh` + `tools/include-graph.py`（需 Claude 自觉调用）。
+
+> **验证 hooks 是否真生效**（注册并重启后）：① 新会话首条响应应自动出现 SessionStart 引导文本；② 故意让 Claude 往 app 层写一个 `#include "stm32f4xx.h"` 的文件，应被 `pre-write-check.py` 以 exit 2 拦截。两者都不发生 = hooks 未注册成功，回到方式 C。

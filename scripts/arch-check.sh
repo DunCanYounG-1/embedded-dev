@@ -8,6 +8,7 @@
 #
 # 检查项（任一失败即 exit != 0）：
 #   ARCH-1: 应用层 (app/) 不得 #include 厂商 HAL 头
+#   ARCH-1C: 应用层不得直接裸访问寄存器地址（volatile 强转 hex MMIO，应封装到 HAL/BSP）
 #   ARCH-2: main.c 顶层函数调用 ≤ 6
 #   ARCH-3: ISR / 回调函数体 ≤ 20 行
 #   ARCH-4: 应用层 extern 变量数 = 0（extern 函数声明排除）
@@ -40,10 +41,12 @@ fi
 # ===== 配置 =====
 APP_LAYER_DIRS=(app application project/code/app src/app code/app)
 VENDOR_DIRS=(libraries sdk vendor third_party Drivers Middlewares)
-# 厂商头：STM32 / GD32 / ESP-IDF / TI MSPM0 / Nordic / Infineon TC2xx (Ifx*.h / ifx*_reg.h / SysSe/*)
-VENDOR_HEADERS_RE='#[[:space:]]*include[[:space:]]+[<"](stm32[a-z0-9_]*\.h|gd32[a-z0-9_]*\.h|esp_system\.h|ti_msp_dl_config\.h|nrf[a-z0-9_]*\.h|nrfx[a-z0-9_]*\.h|Ifx[A-Za-z0-9_]+\.h|ifx[a-z0-9_]+_reg\.h|SysSe/[^>"]+|Bsp\.h)[>"]'
+# 厂商头：STM32 / GD32 / ESP-IDF / TI MSPM0 / Nordic / Infineon TC2xx / Dialog
+VENDOR_HEADERS_RE='#[[:space:]]*include[[:space:]]+[<"](stm32[a-z0-9_]*\.h|gd32[a-z0-9_]*\.h|esp_system\.h|esp_[a-z0-9_]+\.h|driver/gpio\.h|ti_msp_dl_config\.h|nrf[a-z0-9_]*\.h|nrfx[a-z0-9_]*\.h|Ifx[A-Za-z0-9_]+\.h|ifx[a-z0-9_]+_reg\.h|SysSe/[^>"]+|Bsp\.h|DA[A-Z0-9]+\.h|hal/nrf_[a-z0-9_]+\.h)[>"]'
 # Catch-all mega-header（Seekfree 风格统一头文件，间接拉入厂商头 → 等同违规）
 CATCH_ALL_HEADERS_RE='#[[:space:]]*include[[:space:]]+[<"]([a-z_]*_?common_?headfile\.h|[a-z_]*_headfile\.h|headfile\.h|all\.h|globals\.h|project\.h)[>"]'
+# 逐飞开源库标准 mega-header — 白名单放行（与 pre-write-check.py 同步）
+CATCH_ALL_WHITELIST_RE='zf_common_headfile\.h'
 MAIN_C_MAX_CALLS=6
 ISR_BODY_MAX=20
 C_FILE_MAX_LINES=800
@@ -74,13 +77,22 @@ check_app_vendor_includes() {
                 $1=""; $2=""; rest=$0; sub(/^::/,"",rest); sub(/^[ \t]+/,"",rest);
                 printf "[ARCH-1] %s:%s - 应用层 include 厂商头: %s\n", file, line, rest
             }'
-        # 1b: 间接：catch-all mega-header（zf_common_headfile.h 等）
+        # 1b: 间接：catch-all mega-header（zf_common_headfile.h 等），白名单排除
         grep -rnE "$CATCH_ALL_HEADERS_RE" "$d" \
             --include="*.c" --include="*.h" 2>/dev/null | \
+            grep -vE "$CATCH_ALL_WHITELIST_RE" | \
             awk -F: '{
                 file=$1; line=$2;
                 $1=""; $2=""; rest=$0; sub(/^::/,"",rest); sub(/^[ \t]+/,"",rest);
                 printf "[ARCH-1B] %s:%s - 应用层 include catch-all mega-header（间接拉入厂商头）: %s\n", file, line, rest
+            }'
+        # 1c: 应用层裸寄存器访问（volatile 强转 hex 地址，绕过 #include 也算违规，应封装到 HAL/BSP）
+        grep -rnE '\*[[:space:]]*\([[:space:]]*volatile[[:space:]][^)]*\*[[:space:]]*\)[[:space:]]*0[xX][0-9A-Fa-f]+' "$d" \
+            --include="*.c" --include="*.h" 2>/dev/null | \
+            awk -F: '{
+                file=$1; line=$2;
+                $1=""; $2=""; rest=$0; sub(/^::/,"",rest); sub(/^[ \t]+/,"",rest);
+                printf "[ARCH-1C] %s:%s - 应用层直接访问寄存器地址（裸 MMIO，应封装到 HAL/BSP 层）: %s\n", file, line, rest
             }'
     done
 }
@@ -114,7 +126,6 @@ check_main_c_calls() {
                     c = substr(line,i,1)
                     if (c == "{") {
                         depth++
-                        next_top = (depth == 1)
                     } else if (c == "}") {
                         depth--
                         if (depth == 0) {
@@ -271,6 +282,8 @@ check_mega_header() {
             [ -d "$d" ] || continue
             while IFS= read -r mega_name; do
                 [ -z "$mega_name" ] && continue
+                # 白名单放行
+                echo "$mega_name" | grep -qE "$CATCH_ALL_WHITELIST_RE" && continue
                 # grep 转义点号
                 esc=$(printf '%s' "$mega_name" | sed 's/\./\\./g')
                 grep -rnE "#[[:space:]]*include[[:space:]]+[<\"]${esc}[>\"]" "$d" \
@@ -324,83 +337,46 @@ check_hw_lock() {
     hw_yaml=$(mktemp 2>/dev/null || echo "/tmp/hw_yaml.$$.tmp")
     printf '%s\n' "$yaml_block" > "$hw_yaml"
 
-    # ---- 检测 8a: pins.id 重复 ----
+    # ---- 统一冲突检测（同时兼容 inline flow `- {id: PA0}` 与 block-style 多行 `- id: PA0`）----
+    # 逐 item 累积字段（item 边界 = 以 `-` 开头的列表行），字段用词边界锚定提取，
+    # 在 item 切换 / section 切换 / EOF 时结算，对两种 YAML 写法都成立。
     awk '
-        /^[[:space:]]+- \{[[:space:]]*id:[[:space:]]*[A-Za-z0-9_]+/ && section=="pins" {
-            match($0, /id:[[:space:]]*[A-Za-z0-9_]+/)
-            v = substr($0, RSTART+3, RLENGTH-3); gsub(/^[ \t]+|[ \t,]+$/, "", v)
-            count[v]++
-            if (count[v] > 1) printf "  pin %s 重复（第 %d 次）\n", v, count[v]
+        function getval(line, key,   m, re) {
+            re = "(^|[^A-Za-z0-9_])" key ":[ \t]*[A-Za-z0-9_]+"
+            if (match(line, re)) {
+                m = substr(line, RSTART, RLENGTH)
+                sub(".*" key ":[ \t]*", "", m)
+                return m
+            }
+            return ""
         }
-        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
-        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
-        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
-        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
+        function flush(   k) {
+            if (!have) return
+            if (section=="pins"   && cid!="")    { pin[cid]++;    if (pin[cid]>1)    print "pins: pin " cid " 重复" }
+            if (section=="dma"    && cstream!="") { dm[cstream]++; if (dm[cstream]>1) print "dma: stream " cstream " 重复" }
+            if (section=="irq") {
+                if (cirqn!="") { iq[cirqn]++; if (iq[cirqn]>1) print "irq: irqn " cirqn " 重复" }
+                if (cpp!="" && cps!="") { k=cpp"_"cps; pr[k]++; if (pr[k]>1) print "irq: priority " cpp "/" cps " 重复（" cirqn " 与之前条目同优先级）" }
+            }
+            if (section=="timers" && cid!="")    { tm[cid]++;     if (tm[cid]>1)     print "timers: id " cid " 重复" }
+            cid=""; cstream=""; cirqn=""; cpp=""; cps=""; have=0
+        }
+        /^[ \t]*pins:[ \t]*$/   { flush(); section="pins";   next }
+        /^[ \t]*dma:[ \t]*$/    { flush(); section="dma";    next }
+        /^[ \t]*irq:[ \t]*$/    { flush(); section="irq";    next }
+        /^[ \t]*timers:[ \t]*$/ { flush(); section="timers"; next }
+        section != "" {
+            if ($0 ~ /^[ \t]*-/) { flush(); have=1 }   # 新 item 起始（inline 与 block 都以 `-` 开头）
+            v=getval($0,"id");               if (v!="") cid=v
+            v=getval($0,"stream");           if (v!="") cstream=v
+            v=getval($0,"irqn");             if (v!="") cirqn=v
+            v=getval($0,"priority_preempt"); if (v!="") cpp=v
+            v=getval($0,"priority_sub");     if (v!="") cps=v
+        }
+        END { flush() }
     ' "$hw_yaml" | while IFS= read -r dup; do
         [ -z "$dup" ] && continue
-        printf "[ARCH-8] %s:1 - hw_lock.pins:%s\n" "$hw_file" "$dup"
-    done
-
-    # ---- 检测 8b: dma.stream 重复 ----
-    awk '
-        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
-        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
-        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
-        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
-        /^[[:space:]]+- \{[[:space:]]*stream:[[:space:]]*[A-Za-z0-9_]+/ && section=="dma" {
-            match($0, /stream:[[:space:]]*[A-Za-z0-9_]+/)
-            v = substr($0, RSTART+7, RLENGTH-7); gsub(/^[ \t]+|[ \t,]+$/, "", v)
-            count[v]++
-            if (count[v] > 1) printf "  dma.stream %s 重复\n", v
-        }
-    ' "$hw_yaml" | while IFS= read -r dup; do
-        [ -z "$dup" ] && continue
-        printf "[ARCH-8] %s:1 - hw_lock.dma:%s\n" "$hw_file" "$dup"
-    done
-
-    # ---- 检测 8c: irq.irqn 重复 + 同优先级重复 ----
-    awk '
-        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
-        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
-        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
-        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
-        /^[[:space:]]+- \{[[:space:]]*irqn:/ && section=="irq" {
-            # 提 irqn 名
-            match($0, /irqn:[[:space:]]*[A-Za-z0-9_]+/)
-            irqn = substr($0, RSTART+5, RLENGTH-5); gsub(/^[ \t]+|[ \t,]+$/, "", irqn)
-            cnt_irqn[irqn]++
-            if (cnt_irqn[irqn] > 1) printf "  irq.irqn %s 重复\n", irqn
-            # 提抢占/子优先级
-            if (match($0, /priority_preempt:[[:space:]]*[0-9]+/)) {
-                pp = substr($0, RSTART+17, RLENGTH-17); gsub(/[ \t,}]+/, "", pp)
-            } else pp="?"
-            if (match($0, /priority_sub:[[:space:]]*[0-9]+/)) {
-                ps = substr($0, RSTART+13, RLENGTH-13); gsub(/[ \t,}]+/, "", ps)
-            } else ps="?"
-            key = pp"_"ps
-            cnt_pri[key]++
-            if (cnt_pri[key] > 1) printf "  irq.priority %s/%s 重复（%s 与之前条目同优先级）\n", pp, ps, irqn
-        }
-    ' "$hw_yaml" | while IFS= read -r dup; do
-        [ -z "$dup" ] && continue
-        printf "[ARCH-8] %s:1 - hw_lock.irq:%s\n" "$hw_file" "$dup"
-    done
-
-    # ---- 检测 8d: timers.id 重复 ----
-    awk '
-        /^[[:space:]]*pins:[[:space:]]*$/  { section="pins";   next }
-        /^[[:space:]]*dma:[[:space:]]*$/   { section="dma";    next }
-        /^[[:space:]]*irq:[[:space:]]*$/   { section="irq";    next }
-        /^[[:space:]]*timers:[[:space:]]*$/{ section="timers"; next }
-        /^[[:space:]]+- \{[[:space:]]*id:[[:space:]]*[A-Za-z0-9_]+/ && section=="timers" {
-            match($0, /id:[[:space:]]*[A-Za-z0-9_]+/)
-            v = substr($0, RSTART+3, RLENGTH-3); gsub(/^[ \t]+|[ \t,]+$/, "", v)
-            cnt[v]++
-            if (cnt[v] > 1) printf "  timers.id %s 重复\n", v
-        }
-    ' "$hw_yaml" | while IFS= read -r dup; do
-        [ -z "$dup" ] && continue
-        printf "[ARCH-8] %s:1 - hw_lock.timers:%s\n" "$hw_file" "$dup"
+        printf "[ARCH-8] %s:1 - hw_lock.%s\n" "$hw_file" "$dup"
     done
 
     rm -f "$hw_yaml" 2>/dev/null

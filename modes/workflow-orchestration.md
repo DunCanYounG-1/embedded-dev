@@ -152,6 +152,7 @@ routing: {
 | **Workflow 运行中不能问用户** | 工具设计如此 | 任何 `status=blocked`/`human_decision_required` 一律 `return` 给主线 ARCH；ARCH 用 `AskUserQuestion` 拿决策，再 `Workflow({scriptPath, resumeFromRunId, args:{..., human_decisions:{...}}})` 续跑（旧 agent 调用走缓存秒回，从分叉点继续） |
 | **硬件在环不进 Workflow** | flash/serial/PIL 需真实硬件，不适合无人值守 | QA 在脚本内只做软件侧（arch-check/include-graph/静态/MIL），硬件步骤写进 `hardware_steps_pending` 返回 |
 | **副作用留主线** | git commit/tag/push 是不可逆外部动作 | 脚本只产代码/数据文件；tag 与 push 由 ARCH 在门后做 |
+| **CP-3 门禁靠子代理自报** | Workflow 不能自己跑 bash，`arch-check`/`include-graph` 由 QA 子代理执行 | 已强制 QA 把真实 exit code 写进 `result.qa.evidence`；ARCH **应核对这些 exit 行、或在门后亲自复跑一次 `arch-check.sh`** 再打 tag，别盲信 verdict（审查实证：子代理幻觉 "exit 0" 即可骗过门禁）|
 | **并行写冲突** | `parallel()` 同时写文件会撞 | 靠文件归属互斥（DRV→drivers/、ALG→app/、REPORT→docs/）；无法互斥时 `routing.isolate_writes=true` 给 worktree 隔离（但跨 worktree 合并 C 工程成本高） |
 | **嵌套一层** | `workflow()` 里再调 `workflow()` 抛错 | CP 级脚本别再起子 Workflow；要分层就主线串多个 Workflow |
 | **无 `Date.now`/`Math.random`** | 会破坏 resume | 脚本本身不产时间戳：`args.current_time` 由主线传入、trace_id 由主线给；`ticket.created_at` 由 QA 子 agent 填，其可复现性取决于子 agent 环境，排序对此为 best-effort（同优先级回退字符串比较） |

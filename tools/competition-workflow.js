@@ -334,6 +334,7 @@ function qaPrompt(A, rerunOf) {
     `2. python ~/.claude/skills/embedded-dev/tools/include-graph.py → 有 LAYER-VIOL 即 FAIL`,
     `3. 静态分区检查 (app 严苛 / drv 中等 / vendor 跳过)；MIL：跑 .m 仿真对照参考输出`,
     `4. 5 元组验收表逐项打钩 + 实时性专项 (jitter/ISR/栈水位/CPU/浮点路径)`,
+    `【强制证据·防自报失真】evidence 必须含 arch-check 与 include-graph 的真实 exit code 行 (如 "arch-check.sh exit=0"、"include-graph.py exit=1") + 关键输出尾部。编排器不替你跑工具，CP-3 门禁可信度取决于你如实回报——禁止编造 exit 码、禁止未实跑就声称通过。`,
     `【硬件在环 (本 Workflow 不跑，列进 hardware_steps_pending)】`,
     `编译/烧录/serial-monitor/PIL 这些需硬件的步骤不要在此执行，写进 hardware_steps_pending 返回。${pil}`,
     `【强制】FAIL 时每条问题必须打成 Defect Ticket (owner_agent 必填、禁 unknown；root_cause_id 同根因复用；category 用 8 类)。`,

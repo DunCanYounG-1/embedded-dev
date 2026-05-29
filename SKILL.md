@@ -219,6 +219,13 @@ triggers:
   - "电机堵转"
   - "电池欠压"
   - "看门狗复位"
+  - "Workflow 编排"
+  - "原生工作流"
+  - "确定性编排"
+  - "workflow 接管"
+  - "用 Workflow 跑比赛模式"
+  - "Workflow 工具"
+  - "deterministic orchestration"
 hooks:
   SessionStart:
     - matcher: "startup|clear|compact"
@@ -487,6 +494,7 @@ test -e /dev/null && echo "[embedded-dev] hooks env: ok" \
 | `quickstart` / `快速开始` / `15 分钟入门` / `三人极简` / `Mini 模式` | **单页快速通道**：15 分钟从读题到派 Agent；只读 1 张表即可起步，省 4 小时学习曲线 | `refs/competition-quickstart-1page.md` |
 | `embedded-arch` / `embedded-drv` / `embedded-alg` / `embedded-qa` / `embedded-matlab` / `embedded-report` / `subagent` / `VoltAgent 风格` | **6 个独立 subagent**（已装 `~/.claude/agents/`）按 VoltAgent 标准格式，可用 `Task(subagent_type=embedded-xxx)` 直接派发；独立 context = 主线压力小 | `agents/README.md` + `agents/embedded-*.md` |
 | `电路` / `电路仿真` / `SPICE` / `网表生成` / `Multisim` / `运放/滤波/调理电路验证` | **模拟前端电路预验证**（外部辅助 skill，非 modes 文件）：自然语言→SPICE 网表→内置 ngspice 批处理自检→可选 NI Multisim 出原理图。**设计期（RESEARCH/INNOVATE）证据生成型，非 EXECUTE 执行器，不走 Command Outcome 契约**；仅 Windows，Multisim 可选（未装则保留 `.cir`+ngspice 数值即完成）；与 Simscape 边界——电路级正确性走它、系统级/控制链路走 Simscape；结果反哺 `研究发现.md`/`硬件资源表.md` | 外部 skill `multisim-spice`（`~/.claude/skills/multisim-spice`）+ `refs/riper5-stages.md` RESEARCH 步骤 10 |
+| `Workflow 编排` / `原生工作流` / `确定性编排` / `workflow 接管` / `用 Workflow 跑比赛模式` | **原生 Workflow 编排后端**：把比赛模式 v2（CP-1.5→CP-4）或长任务 Scout-Builder-Verifier 从「主线每轮自觉遵守」升级为 Opus 原生 `Workflow` 工具**确定性执行**（`phase`↔CP、`parallel`↔CP 内派发、`agent({schema})`↔强制 Command Outcome、`while`+`Map`↔全局重试预算、回派环写死）。**Workflow 管骨架与门禁、Goal/Agent 管判断与实现**；`blocked` 不能问用户 → 一律 return 给主线 ARCH 做 `AskUserQuestion` + `resumeFromRunId` 续跑；git tag / 硬件在环留主线。**不替代 RIPER-5/competition.md，是其可选执行后端** | `modes/workflow-orchestration.md` + 脚本 `tools/competition-workflow.js` |
 调用规则：
 1. **立即读取**对应的 `modes/` 文件
 2. 按该文件的流程执行任务，**不中断当前 RIPER-5 阶段**

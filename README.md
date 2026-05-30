@@ -65,7 +65,7 @@
 
 ## 快速开始
 
-作为 **Claude Code 插件**安装——一条命令装齐 26 个 skill，**hooks 自动注册**：
+**前提**：已装好 Claude Code，并有 Python / Bash / Git（Windows 还需 Git Bash 在 PATH，见 [`INSTALL.md`](INSTALL.md) §2）。满足后，作为 **Claude Code 插件**安装——一条命令装齐 26 个 skill 并**自动注册 hooks**：
 
 ```text
 /plugin marketplace add DunCanYounG-1/embedded-dev

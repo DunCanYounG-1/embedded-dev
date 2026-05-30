@@ -1,6 +1,8 @@
 # 安装与依赖
 
-本 skill 以 **Claude Code 插件（plugin）** 形式分发：一条命令装齐 26 个 skill（embedded-dev 本体 + 25 个执行层 skill），**hooks 自动注册**，无需手动改 settings.json。
+本 skill 以 **Claude Code 插件（plugin）** 形式分发。**在已装好 Claude Code 的前提下**，一条 `/plugin install` 即可装齐 26 个 skill（embedded-dev 本体 + 25 个执行层 skill）的内置内容并**自动注册 hooks**，无需手动改 settings.json。
+
+> **诚实边界（不是"白板机器零依赖"）**：和所有带 hook 的插件一样，本插件**无法代劳 Claude Code 本身就需要的运行时**——Python / Bash / Git（Windows 还需 Git Bash 在 PATH）是**安装前置**，见 §2；缺它们时 hooks 静默失效（fail open），协议主流程仍由 Claude 手动遵守。`grok-search`（联网检索，§3.1）、各烧录/调试工具链等是**可选/可降级**项，需另配。
 
 依赖按**必装 / 推荐 / 可选**三级列出，每项缺失都有降级方案；缺什么 hooks 都 fail open，协议主流程不卡死。
 

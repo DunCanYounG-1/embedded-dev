@@ -14,6 +14,14 @@
     "嵌入式", "单片机", "固件", "firmware", "STM32", "ESP32", "GD32", "MSPM0",
     "RISC-V", "外设驱动", "RIPER-5", "分层架构", "MATLAB", "电赛", "比赛模式"
   ],
+  "skills": "./skills/",
   "hooks": "./skills/embedded-dev/hooks/hooks.json",
-  "agents": ["./agents/"]
+  "agents": [
+    "./agents/embedded-arch.md",
+    "./agents/embedded-drv.md",
+    "./agents/embedded-alg.md",
+    "./agents/embedded-matlab.md",
+    "./agents/embedded-qa.md",
+    "./agents/embedded-report.md"
+  ]
 }
